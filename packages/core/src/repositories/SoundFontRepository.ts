@@ -22,7 +22,7 @@ const getDefaultSoundFont = (): SoundFontItem & Metadata & { id: number } =>
         id: DEFAULT_SOUND_FONT_ID,
         type: "remote",
         name: "A320U.sf2 (Signal Factory Sound)",
-        url: "https://cdn.jsdelivr.net/gh/ryohey/signal@4569a31/public/A320U.sf2",
+        url: "/A320U.sf2",
       }
 
 export const defaultSoundFontId = DEFAULT_SOUND_FONT_ID

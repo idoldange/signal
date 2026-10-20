@@ -20,33 +20,11 @@ export default defineConfig(({ mode }) => {
           exportType: "default",
         },
       }),
-      {
-        name: "rewrite-path",
-        configureServer(server) {
-          server.middlewares.use((req, _res, next) => {
-            if (req.url === "/home") {
-              req.url = "/community"
-            }
-            if (req.url === "/profile") {
-              req.url = "/community"
-            }
-            if (req.url?.startsWith("/users/")) {
-              req.url = "/community"
-            }
-            if (req.url?.startsWith("/songs/")) {
-              req.url = "/community"
-            }
-            next()
-          })
-        },
-      },
     ],
     build: {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, "edit.html"),
-          auth: path.resolve(__dirname, "auth.html"),
-          community: path.resolve(__dirname, "community.html"),
         },
       },
       minify: false,
@@ -64,19 +42,11 @@ export default defineConfig(({ mode }) => {
       dedupe: [
         "react",
         "react-dom",
-        "firebase",
-        "firebase/app",
-        "firebase/auth",
-        "firebase/firestore",
-        "firebase/functions",
       ],
     },
     envDir: "..",
     define: {
       "process.env": env,
-    },
-    optimizeDeps: {
-      include: ["firebase/app", "firebase/firestore"],
     },
   }
 })

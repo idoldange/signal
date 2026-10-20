@@ -1,6 +1,5 @@
 import styled from "@emotion/styled"
 import { Tooltip } from "@signal-app/ui"
-import Forum from "mdi-react/ForumIcon"
 import Help from "mdi-react/HelpCircleIcon"
 import Settings from "mdi-react/SettingsIcon"
 import React, {
@@ -212,18 +211,6 @@ const _Navigation: FC = () => {
             </TabTitle>
           </Tab>
 
-          <Tab>
-            <Forum style={IconStyle} />
-            <TabTitle>
-              <a
-                href="https://discord.gg/XQxzNdDJse"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Discord
-              </a>
-            </TabTitle>
-          </Tab>
         </>
       )}
 

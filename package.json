@@ -14,8 +14,6 @@
     "format:check": "turbo format:check",
     "check": "turbo check",
     "typecheck": "turbo typecheck",
-    "firebase": "npm --prefix functions run build && firebase emulators:start",
-    "firebase:deploy": "firebase deploy",
     "dev:electron": "concurrently \"pnpm --dir app dev\" \"npm run dev --prefix electron\"",
     "build:electron": "pnpm --dir app build:electron && rimraf electron/dist_renderer && cpx \"app/dist/**/*\" electron/dist_renderer",
     "package:electron:darwin": "pnpm run build:electron && npm run package:darwin --prefix electron",

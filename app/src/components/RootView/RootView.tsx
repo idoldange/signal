@@ -1,7 +1,6 @@
 import styled from "@emotion/styled"
 import type { FC } from "react"
 import { ArrangeEditor } from "../../features/arrange/components/ArrangeEditor"
-import { CloudFileDialog } from "../../features/cloud-file/components/CloudFileDialog"
 import { ControlSettingDialog } from "../../features/control-pane/components/dialogs/ControlSettingDialog"
 import { ExportProgressDialog } from "../../features/export/components/ExportProgressDialog"
 import { PianoRollEditor } from "../../features/piano-roll/components/PianoRollEditor"
@@ -20,10 +19,6 @@ import { EditMenuChildrenProvider } from "../Navigation/EditMenuPortal"
 import { Navigation } from "../Navigation/Navigation"
 import { OnBeforeUnload } from "../OnBeforeUnload/OnBeforeUnload"
 import { OnInit } from "../OnInit/OnInit"
-import { PublishDialog } from "../PublishDialog/PublishDialog"
-import { SignInDialog } from "../SignInDialog/SignInDialog"
-import { DeleteAccountDialog } from "../UserSettingsDialog/DeleteAccountDialog"
-import { UserSettingsDialog } from "../UserSettingsDialog/UserSettingsDialog"
 import { DropZone } from "./DropZone"
 
 const Container = styled.div`
@@ -76,15 +71,10 @@ export const RootView: FC = () => {
       <HelpDialog />
       <ExportProgressDialog />
       <Head />
-      <SignInDialog />
-      <CloudFileDialog />
       <SettingDialog />
       <ControlSettingDialog />
       <OnInit />
       <OnBeforeUnload />
-      <PublishDialog />
-      <UserSettingsDialog />
-      <DeleteAccountDialog />
     </>
   )
 }
