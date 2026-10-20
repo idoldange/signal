@@ -7,6 +7,7 @@ import { useMIDIDevice } from "../../features/midi-device/hooks/useMIDIDevice"
 import { useSoundFont } from "../../features/soundfont/hooks/useSoundFont"
 import { isRunningInElectron } from "../../helpers/platform"
 import { useAutoSave } from "../../hooks/useAutoSave"
+import { isDiscordActivity } from "../../arona/activity"
 import { useStores } from "../../hooks/useStores"
 import { useLocalization } from "../../localize/useLocalization"
 import { AutoSaveDialog } from "../AutoSaveDialog/AutoSaveDialog"
@@ -32,7 +33,11 @@ export const OnInit: FC = () => {
     try {
       await rootStore.init()
       await initSoundFont()
-      await initMIDIDevice()
+      // Web MIDI asks for a permission. Inside a Discord Activity that prompt can stay unanswered forever and
+      // would block the whole editor, so there it only connects when the user presses the button in the MIDI settings.
+      if (!isDiscordActivity) {
+        await initMIDIDevice()
+      }
     } catch (e) {
       setIsErrorDialogOpen(true)
       setErrorMessage((e as Error).message)

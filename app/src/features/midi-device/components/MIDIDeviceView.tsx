@@ -1,6 +1,7 @@
 import styled from "@emotion/styled"
 import {
   Alert,
+  Button,
   Checkbox,
   CircularProgress,
   DialogContent,
@@ -9,7 +10,8 @@ import {
   RadioButton,
 } from "@signal-app/ui"
 import BluetoothIcon from "mdi-react/BluetoothIcon"
-import { type FC, useCallback, useMemo } from "react"
+import { type FC, useCallback, useMemo, useState } from "react"
+import { isDiscordActivity } from "../../../arona/activity"
 import { Localized } from "../../../localize/useLocalization"
 import { useBLEMIDIDevice } from "../hooks/useBLEMIDIDevice"
 import { type Device, useMIDIDevice } from "../hooks/useMIDIDevice"
@@ -97,7 +99,10 @@ export const MIDIDeviceView: FC = () => {
     setInputEnable: setMidiInputEnable,
     setOutputEnable,
     setMidiInputRouting,
+    initMIDIDevice,
   } = useMIDIDevice()
+  // In the Discord Activity the MIDI permission is only requested when asked for here
+  const [midiRequested, setMidiRequested] = useState(false)
 
   const {
     inputDevices: btInputDevices,
@@ -133,6 +138,16 @@ export const MIDIDeviceView: FC = () => {
         <Localized name="midi-settings" />
       </DialogSectionTitle>
       <DialogContent>
+        {isDiscordActivity && !midiRequested && (
+          <Button
+            onClick={() => {
+              setMidiRequested(true)
+              initMIDIDevice()
+            }}
+          >
+            Connect MIDI devices
+          </Button>
+        )}
         {isLoading && <CircularProgress />}
         {requestError && (
           <Alert severity="warning">{requestError.message}</Alert>
