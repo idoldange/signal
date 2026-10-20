@@ -12,6 +12,8 @@ export function getPlatform() {
 }
 
 export function isRunningInElectron() {
-  // Check if we are running in Electron using the user agent
-  return navigator.userAgent.toLowerCase().indexOf(" electron/") > -1
+  // electronAPI is injected by Electron's preload script (contextBridge).
+  // Do not detect via user agent: the Discord desktop client is Electron-based,
+  // so its Activity iframe also reports "Electron/" but has no electronAPI.
+  return typeof window !== "undefined" && window.electronAPI !== undefined
 }
