@@ -9,6 +9,7 @@ import { useTrackList } from "../../track-list/hooks/useTrackList"
 import { PianoRollScope } from "../hooks/usePianoRoll"
 import { usePianoRollGlobalKeyboardShortcuts } from "../hooks/usePianoRollGlobalKeyboardShortcuts"
 import { usePianoRollKeyboardShortcut } from "../hooks/usePianoRollKeyboardShortcut"
+import { PianoRollLyricsDialog } from "./dialogs/PianoRollLyricsDialog"
 import { PianoRollTransposeDialog } from "./dialogs/PianoRollTransposeDialog"
 import { PianoRollVelocityDialog } from "./dialogs/PianoRollVelocityDialog"
 import { PianoRollEditMenu } from "./menus/PianoRollEditMenu"
@@ -88,6 +89,7 @@ export const PianoRollEditor: FC = () => {
       </ColumnContainer>
       <PianoRollTransposeDialog />
       <PianoRollVelocityDialog />
+      <PianoRollLyricsDialog />
     </PianoRollScope>
   )
 }

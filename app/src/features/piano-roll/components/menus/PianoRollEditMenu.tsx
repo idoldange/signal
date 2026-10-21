@@ -15,11 +15,13 @@ import {
   useTransposeSelection,
 } from "../../hooks/selection"
 import { usePianoRoll } from "../../hooks/usePianoRoll"
+import { usePianoRollLyricsDialog } from "../../hooks/usePianoRollLyricsDialog"
 import { usePianoRollVelocityDialog } from "../../hooks/usePianoRollVelocityDialog"
 
 export const PianoRollEditMenu: FC = () => {
   const { selectedNoteIds, setOpenTransposeDialog } = usePianoRoll()
   const { setOpen: setOpenVelocityDialog } = usePianoRollVelocityDialog()
+  const { setOpen: setOpenLyricsDialog } = usePianoRollLyricsDialog()
   const copySelection = useCopySelection()
   const pasteSelection = usePasteSelection()
   const deleteSelection = useDeleteSelection()
@@ -165,6 +167,10 @@ export const PianoRollEditMenu: FC = () => {
 
       <MenuItem onClick={onClickVelocity} disabled={!anySelectedNotes}>
         <Localized name="velocity" />
+      </MenuItem>
+      <MenuItem onClick={() => setOpenLyricsDialog(true)}>
+        Lyrics...
+        <HotKey>L</HotKey>
       </MenuItem>
     </EditMenuPortal>
   )

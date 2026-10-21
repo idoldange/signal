@@ -20,6 +20,7 @@ import { PianoSelectionContextMenu } from "../menus/PianoSelectionContextMenu"
 import { GhostNotes } from "./GhostNotes"
 import { Lines } from "./Lines"
 import { NoteSelection } from "./NoteSelection"
+import { NoteLyrics } from "./NoteLyrics"
 import { Notes } from "./Notes"
 
 export interface PianoRollCanvasProps {
@@ -113,6 +114,7 @@ export const PianoRollCanvas: FC<PianoRollCanvasProps> = ({
           <NoteSelection zIndex={4} />
         </Transform>
       </GLCanvas>
+      <NoteLyrics width={width} height={height} />
       <PianoSelectionContextMenu {...menuProps} />
     </>
   )

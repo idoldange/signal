@@ -12,6 +12,7 @@ import {
   useTransposeSelection,
 } from "./selection"
 import { usePianoRoll } from "./usePianoRoll"
+import { usePianoRollLyricsDialog } from "./usePianoRollLyricsDialog"
 
 export const usePianoNotesKeyboardShortcut = () => {
   const selectNextNote = useSelectNextNote()
@@ -25,6 +26,7 @@ export const usePianoNotesKeyboardShortcut = () => {
   const transposeSelection = useTransposeSelection()
   const { mouseMode, resetSelection } = usePianoRoll()
   const { setOpenTransposeDialog } = usePianoRoll()
+  const { setOpen: setOpenLyricsDialog } = usePianoRollLyricsDialog()
 
   const actions = useMemo(
     () => [
@@ -55,6 +57,10 @@ export const usePianoNotesKeyboardShortcut = () => {
       {
         code: "KeyT",
         run: () => setOpenTransposeDialog(true),
+      },
+      {
+        code: "KeyL",
+        run: () => setOpenLyricsDialog(true),
       },
       { code: "Delete", run: deleteSelection },
       {

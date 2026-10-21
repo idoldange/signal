@@ -10,6 +10,7 @@ export type PianoNoteItem = Rect & {
   id: number
   velocity: number
   noteNumber: number
+  lyric?: string
   isSelected: boolean
 }
 
@@ -39,6 +40,7 @@ export function useNotes(): PianoNoteItem[] {
           id: e.id,
           velocity: e.velocity,
           noteNumber: e.noteNumber,
+          lyric: e.lyric ?? "",
           isSelected,
         }
       }),

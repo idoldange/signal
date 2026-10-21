@@ -4,4 +4,5 @@ export interface NoteEvent {
   duration: number
   noteNumber: number
   velocity: number
+  lyric?: string
 }

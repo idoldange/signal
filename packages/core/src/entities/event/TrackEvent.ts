@@ -27,6 +27,8 @@ type NoteEventContent = {
   duration: number
   noteNumber: number
   velocity: number
+  // Sung syllable, stored in the MIDI file as a Lyric meta event at the start of the note
+  lyric?: string
 }
 
 export type NoteEvent = TrackEventOf<NoteEventContent>
