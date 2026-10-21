@@ -5,6 +5,8 @@ import {
   SongStore,
 } from "@signal-app/core"
 import { Player, SoundFont, SoundFontSynth } from "@signal-app/player"
+import { BackingTrackService } from "../arona/backingTrack"
+import { VocalService } from "../arona/vocal"
 import { isRunningInElectron } from "../helpers/platform"
 import { EventSource } from "../player/EventSource"
 import { AutoSaveService } from "../services/AutoSaveService"
@@ -17,6 +19,8 @@ export default class RootStore {
   readonly songStore = new SongStore()
   readonly midiDeviceStore: MIDIDeviceStore
   readonly player: Player
+  readonly vocalService: VocalService
+  readonly backingTracks: BackingTrackService
   readonly synth: SoundFontSynth
   readonly metronomeSynth: SoundFontSynth
   readonly synthGroup: GroupOutput
@@ -35,6 +39,12 @@ export default class RootStore {
 
     const eventSource = new EventSource(this.songStore)
     this.player = new Player(this.synthGroup, eventSource)
+    this.vocalService = new VocalService(
+      this.songStore,
+      this.player,
+      this.synthGroup,
+    )
+    this.backingTracks = new BackingTrackService(this.songStore, this.player)
 
     this.midiDeviceStore = new MIDIDeviceStore()
     this.midiInput = new MIDIInput(this.midiDeviceStore)

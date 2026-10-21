@@ -32,6 +32,13 @@ export class SoundFontSynth implements SynthOutput {
   }
 
   async loadSoundFont(soundFont: SoundFont) {
+    await this.addSoundFont(soundFont, "main", 0)
+    this._loadedSoundFont = soundFont
+  }
+
+  // Additional banks (Activity: the soundfont the bot picked for each track).
+  // bankOffset is the MIDI bank MSB offset; select it with CC0 before the program change.
+  async addSoundFont(soundFont: SoundFont, id: string, bankOffset = 0) {
     // Init synth if needed
     if (this.synth === null) {
       this.synth = new WorkletSynthesizer(this.context)
@@ -40,9 +47,9 @@ export class SoundFontSynth implements SynthOutput {
 
     await this.synth.soundBankManager.addSoundBank(
       soundFont.data.slice(0),
-      "main",
+      id,
+      bankOffset,
     )
-    this._loadedSoundFont = soundFont
     await this.synth.isReady
   }
 

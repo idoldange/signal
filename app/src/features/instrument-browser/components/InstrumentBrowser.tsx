@@ -14,7 +14,9 @@ import {
   VisuallyHidden,
 } from "@signal-app/ui"
 import type { ProgramChangeEvent } from "midifile-ts"
-import React, { type FC, useCallback } from "react"
+import React, { type FC, useCallback, useSyncExternalStore } from "react"
+import { hasLyricNotes, vocalTrackFlags } from "../../../arona/vocalTrack"
+import { useSong } from "../../../hooks/useSong"
 import { Localized } from "../../../localize/useLocalization"
 import { InstrumentName } from "../../track-list/components/InstrumentName"
 import { useInstrumentBrowser } from "../hooks/useInstrumentBrowser"
@@ -41,6 +43,9 @@ const Right = styled.div`
 const Footer = styled.div`
   margin-top: 1rem;
 `
+
+// Sentinel option in the instrument list; real instruments are 0..127.
+const VOCAL_PROGRAM = -1
 
 export interface InstrumentBrowserProps {
   isOpen: boolean
@@ -95,6 +100,18 @@ const InstrumentBrowserContent: FC<
     [changeRhythmTrack],
   )
 
+  // "Arona Vocal" is listed as the first instrument instead of a separate checkbox.
+  // A track whose notes already have lyrics is a vocal track by definition.
+  const { getTrack } = useSong()
+  const track = getTrack(trackId)
+  const isVocalFlagged = useSyncExternalStore(
+    vocalTrackFlags.subscribe,
+    useCallback(() => (track ? vocalTrackFlags.has(track) : false), [track]),
+  )
+  const trackHasLyrics = track ? hasLyricNotes(track) : false
+  const isVocalTrack = isVocalFlagged || trackHasLyrics
+  const canSelectVocal = targetEvent === undefined && track !== undefined
+
   const categoryOptions = categoryFirstProgramEvents.map((preset, i) => ({
     value: i,
     label: isRhythmTrack ? (
@@ -104,10 +121,31 @@ const InstrumentBrowserContent: FC<
     ),
   }))
 
-  const instrumentOptions = categoryInstruments.map((p) => ({
-    value: p,
-    label: <InstrumentName programNumber={p} isRhythmTrack={isRhythmTrack} />,
-  }))
+  const instrumentOptions = [
+    ...(canSelectVocal
+      ? [{ value: VOCAL_PROGRAM, label: "🎤 Arona Vocal" }]
+      : []),
+    ...categoryInstruments.map((p) => ({
+      value: p,
+      label: <InstrumentName programNumber={p} isRhythmTrack={isRhythmTrack} />,
+    })),
+  ]
+
+  const handleSelectInstrument = useCallback(
+    (value: number) => {
+      if (value === VOCAL_PROGRAM) {
+        if (track) {
+          vocalTrackFlags.set(track, true)
+        }
+        return
+      }
+      if (track) {
+        vocalTrackFlags.set(track, false)
+      }
+      selectInstrument(value)
+    },
+    [track, selectInstrument],
+  )
 
   const handleClickOK = useCallback(() => {
     applyInstrument()
@@ -140,7 +178,7 @@ const InstrumentBrowserContent: FC<
             <SelectBox
               items={categoryOptions}
               selectedValue={selectedCategoryIndex}
-              onChange={(i) => selectInstrument(i * 8)} // Choose the first instrument of the category
+              onChange={(i) => handleSelectInstrument(i * 8)} // Choose the first instrument of the category
             />
           </Left>
           <Right>
@@ -149,8 +187,8 @@ const InstrumentBrowserContent: FC<
             </Label>
             <SelectBox
               items={instrumentOptions}
-              selectedValue={programNumber}
-              onChange={selectInstrument}
+              selectedValue={isVocalTrack ? VOCAL_PROGRAM : programNumber}
+              onChange={handleSelectInstrument}
             />
           </Right>
         </Finder>

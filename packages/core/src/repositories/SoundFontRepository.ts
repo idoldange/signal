@@ -21,8 +21,8 @@ const getDefaultSoundFont = (): SoundFontItem & Metadata & { id: number } =>
     : {
         id: DEFAULT_SOUND_FONT_ID,
         type: "remote",
-        name: "A320U.sf2 (Signal Factory Sound)",
-        url: "/A320U.sf2",
+        name: "GeneralUser-GS.sf2 (Arona)",
+        url: "/GeneralUser-GS.sf2",
       }
 
 export const defaultSoundFontId = DEFAULT_SOUND_FONT_ID

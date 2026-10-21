@@ -184,6 +184,7 @@ const _TrackListItem: FC<TrackListItemProps> = ({ trackId }) => {
     isConductorTrack,
     programNumber,
     isRhythmTrack,
+    isVocalTrack,
     color: trackColor,
     isMuted,
     isSolo,
@@ -281,10 +282,14 @@ const _TrackListItem: FC<TrackListItemProps> = ({ trackId }) => {
           onDoubleClick={onDoubleClickIcon}
         >
           <IconInner data-selected={selected}>
-            <InstrumentEmoji
-              isRhythmTrack={isRhythmTrack}
-              programNumber={programNumber ?? 0}
-            />
+            {isVocalTrack ? (
+              "🎤"
+            ) : (
+              <InstrumentEmoji
+                isRhythmTrack={isRhythmTrack}
+                programNumber={programNumber ?? 0}
+              />
+            )}
           </IconInner>
         </Icon>
         <div>
@@ -293,10 +298,14 @@ const _TrackListItem: FC<TrackListItemProps> = ({ trackId }) => {
               <TrackName trackId={trackId} />
             </Name>
             <Instrument>
-              <InstrumentName
-                programNumber={programNumber}
-                isRhythmTrack={isRhythmTrack}
-              />
+              {isVocalTrack ? (
+                "Arona Vocal"
+              ) : (
+                <InstrumentName
+                  programNumber={programNumber}
+                  isRhythmTrack={isRhythmTrack}
+                />
+              )}
             </Instrument>
           </Label>
           <Controls>

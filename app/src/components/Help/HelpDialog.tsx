@@ -109,6 +109,20 @@ export const HelpDialog: FC = () => {
           text={<Localized name="solo-mute-ghost" />}
         />
         <HotKey hotKeys={[["T"]]} text={<Localized name="transpose" />} />
+        <HotKey
+          hotKeys={[["Shift", "↑"], ["Shift", "↓"]]}
+          text="Transpose by an octave"
+        />
+        <HotKey
+          hotKeys={[["Q"]]}
+          text={<Localized name="quantize" />}
+        />
+        <HotKey
+          hotKeys={[[envString.cmdOrCtrl, "D"]]}
+          text={<Localized name="duplicate" />}
+        />
+        <HotKey hotKeys={[["L"]]} text="Edit Lyrics" />
+        <HotKey hotKeys={[["Escape"]]} text="Deselect" />
         <HotKey hotKeys={[["1"]]} text={<Localized name="pencil-tool" />} />
         <HotKey hotKeys={[["2"]]} text={<Localized name="selection-tool" />} />
         <HotKey

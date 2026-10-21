@@ -1,16 +1,23 @@
 import {
+  isNoteEvent,
   isProgramChangeEvent,
+  type Track,
   type TrackColor,
   type TrackEvent,
   type TrackId,
 } from "@signal-app/core"
 import { useCallback, useSyncExternalStore } from "react"
+import { hasLyricNotes, vocalTrackFlags } from "../arona/vocalTrack"
 import { TrackMute } from "../trackMute/TrackMute"
 import { usePlayer } from "./usePlayer"
 import { useSong } from "./useSong"
 import { useTrackMute } from "./useTrackMute"
 
 const noop = () => () => {}
+
+// Scanning every note on each render is wasteful; the result is cached per track and
+// dropped whenever the track's notes change (or the last subscriber goes away).
+const vocalTrackCache = new WeakMap<Track, boolean>()
 
 export function useTrack(id: TrackId) {
   const { getTrack } = useSong()
@@ -28,6 +35,41 @@ export function useTrack(id: TrackId) {
         track?.onIsConductorTrackChanged.subscribe ?? noop,
         useCallback(() => track?.isConductorTrack ?? false, [track]),
       )
+    },
+    get isVocalTrack() {
+      const subscribe = useCallback(
+        (listener: () => void) => {
+          if (!track) {
+            return () => {}
+          }
+          const unsubscribe = track.subscribeEventsChanged(isNoteEvent, () => {
+            vocalTrackCache.delete(track)
+            listener()
+          })
+          const unsubscribeFlags = vocalTrackFlags.subscribe(listener)
+          return () => {
+            unsubscribe()
+            unsubscribeFlags()
+            vocalTrackCache.delete(track)
+          }
+        },
+        [track],
+      )
+      const getSnapshot = useCallback(() => {
+        if (!track) {
+          return false
+        }
+        if (vocalTrackFlags.has(track)) {
+          return true
+        }
+        let value = vocalTrackCache.get(track)
+        if (value === undefined) {
+          value = hasLyricNotes(track)
+          vocalTrackCache.set(track, value)
+        }
+        return value
+      }, [track])
+      return useSyncExternalStore(subscribe, getSnapshot)
     },
     get programNumber() {
       const { position } = usePlayer()

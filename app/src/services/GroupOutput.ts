@@ -12,6 +12,8 @@ export interface SynthEntry {
 export class GroupOutput implements SynthOutput {
   outputs: SynthEntry[] = []
   trackMute = TrackMute.empty
+  // Tracks whose soundfont output is replaced by something else (the Arona vocal).
+  silencedTrackIds: ReadonlySet<TrackId> = new Set()
 
   private _isMetronomeEnabled = false
   private isMetronomeEnabledListeners = new Set<() => void>()
@@ -44,6 +46,8 @@ export class GroupOutput implements SynthOutput {
   private getOutputs(trackId: TrackId | undefined): SynthOutput[] {
     if (trackId === METRONOME_TRACK_ID) {
       return this.isMetronomeEnabled ? [this.metronomeOutput] : []
+    } else if (trackId !== undefined && this.silencedTrackIds.has(trackId)) {
+      return []
     } else if (
       trackId !== undefined &&
       !TrackMute.shouldPlayTrack(trackId)(this.trackMute)

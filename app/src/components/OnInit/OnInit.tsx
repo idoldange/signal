@@ -1,5 +1,7 @@
 import { useProgress } from "dialog-hooks"
 import { type FC, useEffect, useRef, useState } from "react"
+import { useSetSong } from "../../actions"
+import { openActivitySong } from "../../arona/activityImport"
 import { useMIDIDevice } from "../../features/midi-device/hooks/useMIDIDevice"
 import { useSoundFont } from "../../features/soundfont/hooks/useSoundFont"
 import { useAutoSave } from "../../hooks/useAutoSave"
@@ -11,6 +13,7 @@ import { InitializeErrorDialog } from "./InitializeErrorDialog"
 
 export const OnInit: FC = () => {
   const rootStore = useStores()
+  const setSong = useSetSong()
 
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
@@ -41,6 +44,11 @@ export const OnInit: FC = () => {
   }
 
   const checkAutoSave = async () => {
+    // Inside Discord the project comes from the voice channel, not from localStorage
+    if (isDiscordActivity) {
+      return
+    }
+
     // Skip auto save restore if external file loading is present
     const params = new URLSearchParams(window.location.search)
     const openParam = params.get("open")
@@ -63,6 +71,13 @@ export const OnInit: FC = () => {
     didInit.current = true
     ;(async () => {
       await init()
+      if (isDiscordActivity) {
+        try {
+          await openActivitySong(setSong, rootStore.synth)
+        } catch (e) {
+          console.warn("[arona] could not open the channel project", e)
+        }
+      }
       await checkAutoSave()
     })()
   }, [])

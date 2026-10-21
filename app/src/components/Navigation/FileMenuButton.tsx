@@ -4,13 +4,18 @@ import ChevronRight from "mdi-react/ChevronRightIcon"
 import KeyboardArrowDown from "mdi-react/KeyboardArrowDownIcon"
 import { type FC, useCallback, useState } from "react"
 import { hasFSAccess } from "../../actions/file"
+import { ActivityFileMenu } from "../../arona/ActivityFileMenu"
+import { isDiscordActivity } from "../../arona/activity"
 import { useExport } from "../../features/export/hooks/useExport"
 import { Localized } from "../../localize/useLocalization"
 import { FileMenu } from "./FileMenu"
 import { LegacyFileMenu } from "./LegacyFileMenu"
 import { Tab } from "./Navigation"
 
-export const FileMenuButton: FC = () => {
+export const FileMenuButton: FC = () =>
+  isDiscordActivity ? <ActivityFileMenu /> : <DefaultFileMenuButton />
+
+const DefaultFileMenuButton: FC = () => {
   const { exportSong } = useExport()
   const theme = useTheme()
   const [isOpen, setOpen] = useState(false)
