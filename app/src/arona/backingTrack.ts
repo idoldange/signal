@@ -1,5 +1,6 @@
 import type { SongStore } from "@signal-app/core"
 import type { Player } from "@signal-app/player"
+import { convertAudioToWav } from "./activityImport"
 import { getSongTempos } from "./songToUstx"
 import { tickToSec } from "./vocal"
 
@@ -9,6 +10,8 @@ const MAX_DRIFT_SEC = 0.5
 const PLAY_LATENCY_SEC = 0.05
 
 export interface BackingTrack {
+  // identity of the picked file (name, size, last modified): the same file is not added twice
+  key: string
   id: number
   name: string
   buffer: AudioBuffer
@@ -45,10 +48,43 @@ export class BackingTrackService {
 
   getSnapshot = (): readonly BackingTrack[] => this.tracks
 
-  importFile = async (file: File): Promise<BackingTrack> => {
+  // The same file picked twice (the picker can fire twice inside the Discord iframe) is added
+  // once: imports of one file share a single promise.
+  private pending = new Map<string, Promise<BackingTrack>>()
+
+  importFile = (file: File): Promise<BackingTrack> => {
+    const key = `${file.name}|${file.size}|${file.lastModified}`
+    const known = this.tracks.find((t) => t.key === key)
+    if (known !== undefined) {
+      return Promise.resolve(known)
+    }
+    let job = this.pending.get(key)
+    if (job === undefined) {
+      job = this.load(file, key).finally(() => this.pending.delete(key))
+      this.pending.set(key, job)
+    }
+    return job
+  }
+
+  // The browser decodes wav/mp3/ogg/flac/m4a itself; anything else (or a file it cannot read)
+  // is converted to WAV by the bot with ffmpeg.
+  private decode = async (file: File): Promise<AudioBuffer> => {
     const ctx = this.ensureContext()
-    const buffer = await ctx.decodeAudioData(await file.arrayBuffer())
-    const track: BackingTrack = { id: this.nextId++, name: file.name, buffer }
+    try {
+      return await ctx.decodeAudioData(await file.arrayBuffer())
+    } catch {
+      return await ctx.decodeAudioData(await convertAudioToWav(file))
+    }
+  }
+
+  private load = async (file: File, key: string): Promise<BackingTrack> => {
+    const buffer = await this.decode(file)
+    const track: BackingTrack = {
+      id: this.nextId++,
+      name: file.name,
+      buffer,
+      key,
+    }
     this.tracks = [...this.tracks, track]
     this.emit()
     if (this.player.isPlaying) {

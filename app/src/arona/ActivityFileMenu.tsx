@@ -30,6 +30,13 @@ import { projectToSong } from "./projectToSong"
 import { getVocalTrackIds } from "./vocalTrack"
 import { Tab } from "../components/Navigation/Navigation"
 
+const AUDIO_EXT =
+  /\.(wav|mp3|ogg|oga|opus|flac|m4a|aac|wma|aiff?|webm|mp4|mkv|mov)$/i
+
+const isAudioFile = (file: File) =>
+  !/\.(midi?|ustx?)$/i.test(file.name) &&
+  (file.type.startsWith("audio/") || AUDIO_EXT.test(file.name))
+
 export const ActivityFileMenu: FC = () => {
   const theme = useTheme()
   const toast = useToast()
@@ -182,7 +189,7 @@ export const ActivityFileMenu: FC = () => {
         return
       }
       try {
-        if (/\.wav$/i.test(file.name)) {
+        if (isAudioFile(file)) {
           await backingTracks.importFile(file)
           toast.success(`Added audio track ${file.name}`)
           return
@@ -197,7 +204,7 @@ export const ActivityFileMenu: FC = () => {
           toast.success(`Opened ${name}`)
           return
         }
-        toast.error("Supported files: .mid, .midi, .ust, .ustx, .wav")
+        toast.error("Supported files: MIDI, UST, USTX and audio (WAV, MP3, OGG, FLAC, M4A...)")
       } catch (err) {
         toast.error(`Could not read ${file.name}: ${(err as Error).message}`)
       }
@@ -220,7 +227,7 @@ export const ActivityFileMenu: FC = () => {
     <input
       ref={fileInputRef}
       type="file"
-      accept=".mid,.midi,.ust,.ustx,.wav,audio/midi,audio/mid,audio/wav"
+      accept=".mid,.midi,.ust,.ustx,audio/*,.wav,.mp3,.ogg,.opus,.flac,.m4a,.aac,.wma,.aif,.aiff,.webm"
       style={{ display: "none" }}
       onChange={onImportFile}
     />
@@ -242,7 +249,7 @@ export const ActivityFileMenu: FC = () => {
       <MenuItem onClick={onOpenLatest}>Open latest autosave</MenuItem>
 
       <MenuItem onClick={onImportClick}>
-        Import from computer (MIDI, UST, USTX, WAV)
+        Import from computer (MIDI, UST, USTX, audio)
       </MenuItem>
 
       {backing.map((track) => (

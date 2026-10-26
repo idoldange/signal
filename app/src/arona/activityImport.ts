@@ -51,6 +51,19 @@ export const fetchLatestSave = async (): Promise<LatestSave | null> => {
 
 // .mid/.ust/.ustx opened from the computer: the bot parses and classifies it (same code as
 // the `!arona synth` panel), so instruments, soundfonts and vocal tracks stay correct.
+// Any audio/video file -> WAV bytes, converted by the bot with ffmpeg.
+export const convertAudioToWav = async (file: File): Promise<ArrayBuffer> => {
+  const res = await activityFetch("/api/audio/convert", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: (await file.arrayBuffer()) as BodyInit,
+  })
+  return await res.arrayBuffer()
+}
+
 export const importActivityProject = async (
   file: File,
 ): Promise<ActivityProject> => {
