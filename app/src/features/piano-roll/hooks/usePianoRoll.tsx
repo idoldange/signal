@@ -153,7 +153,7 @@ export function usePianoRollQuantizer() {
 }
 
 // atoms
-const mouseModeAtom = atom<"pencil" | "selection">("pencil")
+const mouseModeAtom = atom<"pencil" | "selection" | "pitch">("pencil")
 const selectedTrackIdAtom = historyAtom(atom<TrackId>(UNASSIGNED_TRACK_ID))
 const selectionAtom = historyAtom(atom<Selection | null>(null))
 const selectedNoteIdsAtom = historyAtom(atom<readonly number[]>([]))

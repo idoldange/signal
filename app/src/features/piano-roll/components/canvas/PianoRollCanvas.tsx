@@ -16,12 +16,15 @@ import { useTickScroll } from "../../../../hooks/useTickScroll"
 import { useNoteMouseGesture } from "../../gestures/useNoteMouseGesture"
 import { useKeyScroll } from "../../hooks/useKeyScroll"
 import { usePianoRoll } from "../../hooks/usePianoRoll"
+import { usePitchContextMenu } from "../../hooks/usePitchContextMenu"
 import { PianoSelectionContextMenu } from "../menus/PianoSelectionContextMenu"
+import { PitchContextMenu } from "../menus/PitchContextMenu"
 import { GhostNotes } from "./GhostNotes"
 import { Lines } from "./Lines"
 import { NoteSelection } from "./NoteSelection"
 import { NoteLyrics } from "./NoteLyrics"
 import { Notes } from "./Notes"
+import { PitchCurves } from "./PitchCurves"
 
 export interface PianoRollCanvasProps {
   width: number
@@ -40,6 +43,7 @@ export const PianoRollCanvas: FC<PianoRollCanvasProps> = ({
   const mouseHandler = useNoteMouseGesture()
 
   const { onContextMenu, menuProps } = useContextMenu()
+  const pitchMenu = usePitchContextMenu()
 
   const theme = useTheme()
 
@@ -55,8 +59,14 @@ export const PianoRollCanvas: FC<PianoRollCanvasProps> = ({
         onContextMenu(e)
         return
       }
+
+      if (mouseMode === "pitch") {
+        e.preventDefault()
+        e.stopPropagation()
+        pitchMenu.open(e)
+      }
     },
-    [mouseMode, onContextMenu],
+    [mouseMode, onContextMenu, pitchMenu.open],
   )
 
   useEffect(() => {
@@ -115,7 +125,9 @@ export const PianoRollCanvas: FC<PianoRollCanvasProps> = ({
         </Transform>
       </GLCanvas>
       <NoteLyrics width={width} height={height} />
+      <PitchCurves width={width} height={height} />
       <PianoSelectionContextMenu {...menuProps} />
+      <PitchContextMenu {...pitchMenu.menuProps} target={pitchMenu.target} />
     </>
   )
 }

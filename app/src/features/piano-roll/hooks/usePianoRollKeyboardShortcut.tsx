@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react"
+import { useSetAtom } from "jotai"
 import { useKeyboardShortcut } from "../../../hooks/useKeyboardShortcut"
 import { useSong } from "../../../hooks/useSong"
 import { useTrackMute } from "../../../hooks/useTrackMute"
@@ -6,6 +7,19 @@ import { useSelectAllNotes } from "./selection"
 import { useNoteCoordTransform } from "./useNoteCoordTransform"
 import { usePianoRoll } from "./usePianoRoll"
 import { useToggleGhost } from "./useToggleGhost"
+import { type PitchTool, pitchToolAtom } from "./usePitchTool"
+
+// Pitch sub-tools while the pitch tool is active: 4 Point, 5 Draw, - Overwrite, 6 Line, 7 S-Curve, 8 Sine, 9 Smooth, 0 Erase
+export const pitchToolKeys: readonly { code: string; tool: PitchTool }[] = [
+  { code: "Digit4", tool: "point" },
+  { code: "Digit5", tool: "draw" },
+  { code: "Digit6", tool: "line" },
+  { code: "Digit7", tool: "scurve" },
+  { code: "Digit8", tool: "sine" },
+  { code: "Digit9", tool: "smooth" },
+  { code: "Digit0", tool: "erase" },
+  { code: "Minus", tool: "overwrite" },
+]
 
 const SCROLL_DELTA = 24
 
@@ -47,7 +61,8 @@ const usePreviousTrack = () => {
 }
 
 export const usePianoRollKeyboardShortcut = () => {
-  const { setMouseMode } = usePianoRoll()
+  const { setMouseMode, mouseMode } = usePianoRoll()
+  const setPitchTool = useSetAtom(pitchToolAtom)
   const { scrollBy } = useNoteCoordTransform()
   const selectAllNotes = useSelectAllNotes()
   const nextTrack = useNextTrack()
@@ -87,6 +102,18 @@ export const usePianoRollKeyboardShortcut = () => {
         run: () => setMouseMode("selection"),
       },
       {
+        code: "Digit3",
+        run: () => setMouseMode("pitch"),
+      },
+      ...pitchToolKeys.map(({ code, tool }) => ({
+        code,
+        run: () => {
+          if (mouseMode === "pitch") {
+            setPitchTool(tool)
+          }
+        },
+      })),
+      {
         code: "KeyA",
         metaKey: true,
         run: selectAllNotes,
@@ -105,6 +132,8 @@ export const usePianoRollKeyboardShortcut = () => {
     [
       scrollBy,
       setMouseMode,
+      mouseMode,
+      setPitchTool,
       selectAllNotes,
       nextTrack,
       previousTrack,

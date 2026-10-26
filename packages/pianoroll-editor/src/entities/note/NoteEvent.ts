@@ -1,3 +1,5 @@
+import type { NotePitch } from "@signal-app/core"
+
 export interface NoteEvent {
   id: number
   tick: number
@@ -5,4 +7,5 @@ export interface NoteEvent {
   noteNumber: number
   velocity: number
   lyric?: string
+  pitch?: NotePitch | undefined
 }

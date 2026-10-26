@@ -1,4 +1,5 @@
 export * from "./identify"
+export * from "./NotePitch"
 export * from "./selectors"
 export * from "./signalEvents"
 export * from "./TrackEvent"

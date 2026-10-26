@@ -87,6 +87,8 @@ export interface ActivityProjectNote {
   tone: number
   lyric: string
   vel: number
+  // Pitch bend read from the UST/USTX (OpenUtau units), see NotePitch in @signal-app/core
+  pitch?: unknown
 }
 
 export interface ActivityProjectTrack {

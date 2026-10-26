@@ -1,6 +1,9 @@
 import {
+  bakePitchOffset,
+  hasPitch,
   isNoteEvent,
   isProgramChangeEvent,
+  type NotePitch,
   type Song,
   type Track,
 } from "@signal-app/core"
@@ -34,6 +37,33 @@ export const getSongTempos = (song: Song): [number, number][] => {
 }
 
 const round = (value: number) => Math.round(value * 1000) / 1000
+
+// OpenUtau's default pitch of a note: flat, starting right at the note.
+const DEFAULT_PITCH_POINTS = [
+  { x: -25, y: 0, shape: "io" },
+  { x: 25, y: 0, shape: "io" },
+] as const
+
+// `pitch:` of a USTX note (flow style). x is in ms and y in 0.1 semitone, the same units the
+// DAW stores, so the points are written as they are.
+export const ustxPitch = (pitch: NotePitch | undefined): string => {
+  const points = hasPitch(pitch)
+    ? bakePitchOffset(pitch)
+    : DEFAULT_PITCH_POINTS
+  const snapFirst = hasPitch(pitch) ? pitch.snapFirst : true
+  const data = points
+    .map((p) => `{x: ${p.x}, y: ${p.y}, shape: ${p.shape}}`)
+    .join(", ")
+  return `{data: [${data}], snap_first: ${snapFirst}}`
+}
+
+// `vibrato:` of a USTX note (length 0 = no vibrato)
+export const ustxVibrato = (pitch: NotePitch | undefined): string => {
+  const v = pitch?.vibrato
+  return v === undefined
+    ? "{length: 0, period: 175, depth: 25, in: 10, out: 10, shift: 0, drift: 0, vol_link: 0}"
+    : `{length: ${v.length}, period: ${v.period}, depth: ${v.depth}, in: ${v.in}, out: ${v.out}, shift: ${v.shift}, drift: ${v.drift}, vol_link: ${v.volLink}}`
+}
 
 const programAtStart = (track: Track) => {
   let program = 0
@@ -104,7 +134,7 @@ export function songToUstx(song: Song): string {
       "    notes:",
       ...notes.map(
         (n) =>
-          `      - {position: ${n.tick}, duration: ${n.duration}, tone: ${n.noteNumber}, pitch: 0, lyric: ${JSON.stringify(vocal ? n.lyric || "a" : "")}}`,
+          `      - {position: ${n.tick}, duration: ${n.duration}, tone: ${n.noteNumber}, pitch: ${ustxPitch(n.pitch)}, vibrato: ${ustxVibrato(n.pitch)}, lyric: ${JSON.stringify(vocal ? n.lyric || "a" : "")}}`,
       ),
     )
   })

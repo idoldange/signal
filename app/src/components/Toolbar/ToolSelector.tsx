@@ -4,7 +4,7 @@ import {
   ToolbarButtonGroupItem,
   Tooltip,
 } from "@signal-app/ui"
-import { type FC, useCallback } from "react"
+import { type FC, type ReactNode, useCallback } from "react"
 import PencilIcon from "../../images/icons/pencil.svg"
 import SelectionIcon from "../../images/icons/selection.svg"
 import { Localized } from "../../localize/useLocalization"
@@ -15,8 +15,10 @@ const ButtonGroup = styled(ToolbarButtonGroup)`
 `
 
 export interface ToolSelectorProps {
-  mouseMode: "pencil" | "selection"
+  mouseMode: "pencil" | "selection" | "pitch"
   onSelect: (mouseMode: "pencil" | "selection") => void
+  // extra tools shown after the pencil and selection tools
+  children?: ReactNode
 }
 
 const IconWrapper = styled.div`
@@ -26,6 +28,7 @@ const IconWrapper = styled.div`
 export const ToolSelector: FC<ToolSelectorProps> = ({
   mouseMode,
   onSelect,
+  children,
 }) => {
   return (
     <ButtonGroup>
@@ -75,6 +78,7 @@ export const ToolSelector: FC<ToolSelectorProps> = ({
           </IconWrapper>
         </Tooltip>
       </ToolbarButtonGroupItem>
+      {children}
     </ButtonGroup>
   )
 }

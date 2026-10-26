@@ -1,4 +1,10 @@
-import { isNoteEvent, type Song, type SongStore } from "@signal-app/core"
+import {
+  hasPitch,
+  isNoteEvent,
+  type NotePitch,
+  type Song,
+  type SongStore,
+} from "@signal-app/core"
 import type { Player } from "@signal-app/player"
 import type { GroupOutput } from "../services/GroupOutput"
 import { isDiscordActivity } from "./activity"
@@ -64,6 +70,7 @@ const buildVocalBody = (song: Song) => {
     dur: number
     tone: number
     lyric: string
+    pitch?: NotePitch
   }[] = []
   for (const track of song.tracks) {
     if (track.isConductorTrack) {
@@ -83,6 +90,7 @@ const buildVocalBody = (song: Song) => {
           dur: event.duration,
           tone: event.noteNumber,
           lyric: lyric !== "" ? event.lyric ?? lyric : "a",
+          ...(hasPitch(event.pitch) ? { pitch: event.pitch } : {}),
         })
       }
     }

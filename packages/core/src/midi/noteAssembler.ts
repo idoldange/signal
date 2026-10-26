@@ -2,6 +2,7 @@ import type { NoteOffEvent, NoteOnEvent } from "midifile-ts"
 import type { NoteEvent, TickProvider } from "../entities"
 import { noteOffMidiEvent, noteOnMidiEvent } from "../midi/MidiEvent"
 import { decodeLyricText, encodeLyricText } from "./lyricCodec"
+import { decodePitchData, encodePitchData } from "./pitchCodec"
 
 /**
 
@@ -55,7 +56,7 @@ export function assemble<T extends object>(
     }
   })
 
-  return attachLyrics(result)
+  return attachPitch(attachLyrics(result))
 }
 
 type TickedLyricEvent = { type: "meta"; subtype: "lyrics"; text: string; tick: number }
@@ -89,6 +90,50 @@ function attachLyrics<T extends object>(events: (T | NoteEvent)[]): (T | NoteEve
   return events.filter((e) => !consumed.has(e))
 }
 
+type TickedSequencerSpecificEvent = {
+  type: "meta"
+  subtype: "sequencerSpecific"
+  data: number[]
+  tick: number
+}
+
+const isSequencerSpecific = (e: object): e is TickedSequencerSpecificEvent =>
+  "type" in e &&
+  e.type === "meta" &&
+  "subtype" in e &&
+  e.subtype === "sequencerSpecific" &&
+  "data" in e &&
+  Array.isArray(e.data) &&
+  "tick" in e
+
+// A pitch bend event on the same tick and note number as a note belongs to that note.
+// Events that match no note stay as they are.
+function attachPitch<T extends object>(events: (T | NoteEvent)[]): (T | NoteEvent)[] {
+  const consumed = new Set<object>()
+  for (const e of events) {
+    if (!isSequencerSpecific(e)) {
+      continue
+    }
+    const decoded = decodePitchData(e.data)
+    if (decoded === undefined) {
+      continue
+    }
+    const target = events.find(
+      (n): n is NoteEvent =>
+        "subtype" in n &&
+        n.subtype === "note" &&
+        (n as NoteEvent).tick === e.tick &&
+        (n as NoteEvent).noteNumber === decoded.noteNumber &&
+        (n as NoteEvent).pitch === undefined,
+    )
+    if (target !== undefined) {
+      target.pitch = decoded.pitch
+      consumed.add(e)
+    }
+  }
+  return consumed.size === 0 ? events : events.filter((e) => !consumed.has(e))
+}
+
 export type TickNoteOnEvent = Omit<NoteOnEvent, "channel" | "deltaTime"> &
   TickProvider
 export type TickNoteOffEvent = Omit<NoteOffEvent, "channel" | "deltaTime"> &
@@ -115,8 +160,21 @@ export function deassemble<T extends object>(
             } as unknown as T,
           ]
         : []
+    const pitch =
+      e.pitch !== undefined && e.pitch.points.length > 0
+        ? [
+            {
+              type: "meta",
+              subtype: "sequencerSpecific",
+              data: encodePitchData(e.noteNumber, e.pitch),
+              deltaTime: 0,
+              tick: e.tick,
+            } as unknown as T,
+          ]
+        : []
     return [
       ...lyric,
+      ...pitch,
       { ...noteOn, tick: e.tick },
       { ...noteOff, tick: e.tick + e.duration },
     ]

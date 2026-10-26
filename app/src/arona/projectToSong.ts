@@ -1,6 +1,7 @@
 import {
   controllerMidiEvent,
   emptyTrack,
+  normalizePitch,
   setTempoMidiEvent,
   Song,
   tickedEventsToTrackEvents,
@@ -11,6 +12,11 @@ import type { ActivityProject } from "./activityApi"
 import { vocalTrackFlags } from "./vocalTrack"
 
 const RHYTHM_CHANNEL = 9
+
+const pitchOf = (value: unknown) => {
+  const pitch = normalizePitch(value)
+  return pitch === undefined ? {} : { pitch }
+}
 
 const pickChannel = (used: Set<number>) => {
   for (let ch = 0; ch < 16; ch++) {
@@ -88,6 +94,8 @@ export function projectToSong(
         // Instrument tracks from USTX often carry the placeholder lyric "a"; keeping it
         // would make the DAW treat the whole track as a vocal track.
         ...(vocal && n.lyric ? { lyric: n.lyric } : {}),
+        // Pitch bend from the UST/USTX (only vocal tracks are sung with it)
+        ...(vocal ? pitchOf(n.pitch) : {}),
       })),
     )
     song.addTrack(track)

@@ -1,5 +1,6 @@
 import type { AnyEvent } from "midifile-ts"
 import type { DistributiveOmit } from "../../types"
+import type { NotePitch } from "./NotePitch"
 import type { AnySignalEvent } from "./signalEvents"
 
 export interface TickProvider {
@@ -29,6 +30,8 @@ type NoteEventContent = {
   velocity: number
   // Sung syllable, stored in the MIDI file as a Lyric meta event at the start of the note
   lyric?: string
+  // Pitch bend of the sung note (OpenUtau/UTAU units), stored as a sequencer specific meta event
+  pitch?: NotePitch | undefined
 }
 
 export type NoteEvent = TrackEventOf<NoteEventContent>
