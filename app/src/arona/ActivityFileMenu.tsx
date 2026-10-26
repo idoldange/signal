@@ -15,10 +15,7 @@ import { useSetSong } from "../actions"
 import { songFromFile } from "../actions/file"
 import { useSong } from "../hooks/useSong"
 import { useStores } from "../hooks/useStores"
-import {
-  type ActivityExportMode,
-  exportActivitySong,
-} from "./activityExport"
+import { type ActivityExportMode, exportActivitySong } from "./activityExport"
 import {
   fetchActivityProjects,
   fetchLatestSave,
@@ -32,6 +29,30 @@ import { Tab } from "../components/Navigation/Navigation"
 
 const AUDIO_EXT =
   /\.(wav|mp3|ogg|oga|opus|flac|m4a|aac|wma|aiff?|webm|mp4|mkv|mov)$/i
+
+// Extensions only: MIME types (audio/midi, audio/wav...) expand into extensions already listed
+// and show up twice in the file dialog.
+const ACCEPT = [
+  ".mid",
+  ".midi",
+  ".ust",
+  ".ustx",
+  ".wav",
+  ".mp3",
+  ".ogg",
+  ".oga",
+  ".opus",
+  ".flac",
+  ".m4a",
+  ".aac",
+  ".wma",
+  ".aif",
+  ".aiff",
+  ".webm",
+  ".mp4",
+  ".mkv",
+  ".mov",
+].join(",")
 
 const isAudioFile = (file: File) =>
   !/\.(midi?|ustx?)$/i.test(file.name) &&
@@ -204,7 +225,9 @@ export const ActivityFileMenu: FC = () => {
           toast.success(`Opened ${name}`)
           return
         }
-        toast.error("Supported files: MIDI, UST, USTX and audio (WAV, MP3, OGG, FLAC, M4A...)")
+        toast.error(
+          "Supported files: MIDI, UST, USTX and audio (WAV, MP3, OGG, FLAC, M4A...)",
+        )
       } catch (err) {
         toast.error(`Could not read ${file.name}: ${(err as Error).message}`)
       }
@@ -219,92 +242,98 @@ export const ActivityFileMenu: FC = () => {
   }, [vocal, vocalService])
 
   // Cung quy tac voi file gui len: co track hat -> USTX, nhac cu -> MIDI.
-  const projectFormat =
-    getVocalTrackIds(getSong()).size > 0 ? "USTX" : "MIDI"
+  const projectFormat = getVocalTrackIds(getSong()).size > 0 ? "USTX" : "MIDI"
 
   return (
     <>
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept=".mid,.midi,.ust,.ustx,audio/*,.wav,.mp3,.ogg,.opus,.flac,.m4a,.aac,.wma,.aif,.aiff,.webm"
-      style={{ display: "none" }}
-      onChange={onImportFile}
-    />
-    <Menu
-      open={isOpen}
-      onOpenChange={setOpen}
-      trigger={
-        <Tab id="tab-file">
-          <span style={{ marginLeft: "0.25rem" }}>File</span>
-          <KeyboardArrowDown style={{ width: "1rem", marginLeft: "0.25rem" }} />
-        </Tab>
-      }
-    >
-      <MenuItem onClick={onSave}>
-        Save to channel
-        <span style={{ marginLeft: "auto", opacity: 0.5 }}>Ctrl+S</span>
-      </MenuItem>
-
-      <MenuItem onClick={onOpenLatest}>Open latest autosave</MenuItem>
-
-      <MenuItem onClick={onImportClick}>
-        Import from computer (MIDI, UST, USTX, audio)
-      </MenuItem>
-
-      {backing.map((track) => (
-        <MenuItem key={track.id} onClick={() => backingTracks.remove(track.id)}>
-          Remove audio: {track.name}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPT}
+        style={{ display: "none" }}
+        onChange={onImportFile}
+      />
+      <Menu
+        open={isOpen}
+        onOpenChange={setOpen}
+        trigger={
+          <Tab id="tab-file">
+            <span style={{ marginLeft: "0.25rem" }}>File</span>
+            <KeyboardArrowDown
+              style={{ width: "1rem", marginLeft: "0.25rem" }}
+            />
+          </Tab>
+        }
+      >
+        <MenuItem onClick={onSave}>
+          Save to channel
+          <span style={{ marginLeft: "auto", opacity: 0.5 }}>Ctrl+S</span>
         </MenuItem>
-      ))}
 
-      {projects !== null && projects.length > 0 && (
+        <MenuItem onClick={onOpenLatest}>Open latest autosave</MenuItem>
+
+        <MenuItem onClick={onImportClick}>
+          Import from computer (MIDI, UST, USTX, audio)
+        </MenuItem>
+
+        {backing.map((track) => (
+          <MenuItem
+            key={track.id}
+            onClick={() => backingTracks.remove(track.id)}
+          >
+            Remove audio: {track.name}
+          </MenuItem>
+        ))}
+
+        {projects !== null && projects.length > 0 && (
+          <SubMenu
+            trigger={
+              <MenuItem>
+                Open from panel
+                <ChevronRight
+                  style={{ marginLeft: "auto", fill: theme.tertiaryTextColor }}
+                />
+              </MenuItem>
+            }
+          >
+            {projects.slice(0, 10).map((project, index) => (
+              <MenuItem
+                key={`${project.name}-${index}`}
+                onClick={() => onOpenProject(project)}
+              >
+                {project.name}
+              </MenuItem>
+            ))}
+          </SubMenu>
+        )}
+
+        <MenuDivider />
+
         <SubMenu
           trigger={
             <MenuItem>
-              Open from panel
+              Export to Discord
               <ChevronRight
                 style={{ marginLeft: "auto", fill: theme.tertiaryTextColor }}
               />
             </MenuItem>
           }
         >
-          {projects.slice(0, 10).map((project, index) => (
-            <MenuItem
-              key={`${project.name}-${index}`}
-              onClick={() => onOpenProject(project)}
-            >
-              {project.name}
-            </MenuItem>
-          ))}
-        </SubMenu>
-      )}
-
-      <MenuDivider />
-
-      <SubMenu
-        trigger={
-          <MenuItem>
-            Export to Discord
-            <ChevronRight
-              style={{ marginLeft: "auto", fill: theme.tertiaryTextColor }}
-            />
+          <MenuItem onClick={() => onExport("audio+ustx")}>
+            Audio + {projectFormat} project
           </MenuItem>
-        }
-      >
-        <MenuItem onClick={() => onExport("audio+ustx")}>
-          Audio + {projectFormat} project
+          <MenuItem onClick={() => onExport("audio")}>Audio (WAV)</MenuItem>
+          <MenuItem onClick={() => onExport("ustx")}>
+            {projectFormat} project
+          </MenuItem>
+        </SubMenu>
+
+        <MenuDivider />
+
+        <MenuItem onClick={onToggleVocal}>
+          {vocal ? "✓ Sing with Arona" : "Sing with Arona"}
         </MenuItem>
-        <MenuItem onClick={() => onExport("audio")}>Audio (WAV)</MenuItem>
-        <MenuItem onClick={() => onExport("ustx")}>{projectFormat} project</MenuItem>
-      </SubMenu>
-
-      <MenuDivider />
-
-      <MenuItem onClick={onToggleVocal}>
-        {vocal ? "✓ Sing with Arona" : "Sing with Arona"}
-      </MenuItem>
-    </Menu>
+      </Menu>
     </>
   )
 }
