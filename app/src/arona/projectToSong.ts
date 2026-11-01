@@ -2,11 +2,11 @@ import {
   controllerMidiEvent,
   emptyTrack,
   normalizePitch,
-  setTempoMidiEvent,
   Song,
+  setTempoMidiEvent,
+  Track,
   tickedEventsToTrackEvents,
   timeSignatureMidiEvent,
-  Track,
 } from "@signal-app/core"
 import type { ActivityProject } from "./activityApi"
 import { vocalTrackFlags } from "./vocalTrack"

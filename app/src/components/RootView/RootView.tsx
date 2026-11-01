@@ -1,3 +1,4 @@
+import { VocalProgressBar } from "../../arona/VocalProgressBar"
 import styled from "@emotion/styled"
 import type { FC } from "react"
 import { ArrangeEditor } from "../../features/arrange/components/ArrangeEditor"
@@ -62,6 +63,7 @@ export const RootView: FC = () => {
             <Navigation />
             <Container>
               <Routes />
+              <VocalProgressBar />
               <TransportPanel />
               <BuildInfo />
             </Container>

@@ -1,11 +1,18 @@
-import { type Song, songToMidi } from "@signal-app/core"
+import { type Song, songToMidi, type TrackId } from "@signal-app/core"
 import { renderAudio } from "@signal-app/player"
 import { encodeWAV } from "../features/export/lib/encodeAudio"
+import { TrackMute } from "../trackMute/TrackMute"
 import { activityJson } from "./activityApi"
+import { type BackingTrack, effectiveGain } from "./backingTrack"
 import { songToUstx } from "./songToUstx"
-import type { BackingTrack } from "./backingTrack"
-import { getVocalTrackIds } from "./vocalTrack"
+import {
+  createTrackChain,
+  scheduleCurves,
+  type TrackChain,
+  trackCurves,
+} from "./trackMix"
 import type { VocalChunk, VocalService } from "./vocal"
+import { getVocalTrackIds } from "./vocalTrack"
 
 export type ActivityExportMode = "audio" | "audio+ustx" | "ustx"
 
@@ -13,12 +20,14 @@ export interface ActivityExportResult {
   ok: boolean
   message_url: string
   files: string[]
+  skipped?: string[]
   converted_to_mp3: boolean
 }
 
 const mixVocals = async (
   audio: AudioBuffer,
   chunks: readonly VocalChunk[],
+  song: Song,
 ): Promise<AudioBuffer> => {
   if (chunks.length === 0) {
     return audio
@@ -34,10 +43,24 @@ const mixVocals = async (
   music.buffer = audio
   music.connect(offline.destination)
   music.start(0)
+  // Same level as when playing: the volume / pan automation and the note velocities of each
+  // track are applied to its vocal.
+  const chains = new Map<TrackId, TrackChain>()
   for (const chunk of chunks) {
     const source = offline.createBufferSource()
     source.buffer = chunk.buffer
-    source.connect(offline.destination)
+    let chain = chains.get(chunk.trackId)
+    const track = song.getTrack(chunk.trackId)
+    if (chain === undefined && track !== undefined) {
+      chain = createTrackChain(offline, offline.destination)
+      scheduleCurves(chain, trackCurves(song, track), {
+        fromSec: 0,
+        nowCtx: 0,
+        toCtx: (sec) => sec,
+      })
+      chains.set(chunk.trackId, chain)
+    }
+    source.connect(chain ? chain.velocity : offline.destination)
     source.start(chunk.start)
   }
   return await offline.startRendering()
@@ -64,9 +87,18 @@ const mixBacking = async (
   music.connect(offline.destination)
   music.start(0)
   for (const track of tracks) {
+    if (track.muted) {
+      continue
+    }
     const source = offline.createBufferSource()
     source.buffer = track.buffer
-    source.connect(offline.destination)
+    const gain = offline.createGain()
+    gain.gain.value = effectiveGain(track)
+    const panner = offline.createStereoPanner()
+    panner.pan.value = track.pan
+    source.connect(gain)
+    gain.connect(panner)
+    panner.connect(offline.destination)
     source.start(0)
   }
   return await offline.startRendering()
@@ -80,6 +112,10 @@ export const exportActivitySong = async (
     vocalService: VocalService
     withVocals: boolean
     backingTracks: readonly BackingTrack[]
+    // mute / solo of the tracks: a muted track is not in the bounce (as in the player)
+    trackMute: TrackMute
+    // also send the audio files (wav parts) as they were imported, so the project is complete
+    attachBacking?: boolean
   },
 ): Promise<ActivityExportResult> => {
   let audio: Uint8Array | null = null
@@ -93,12 +129,12 @@ export const exportActivitySong = async (
     const silenced = options.withVocals
       ? getVocalTrackIds(song)
       : new Set<number>()
-    const events =
-      silenced.size === 0
-        ? song.allEvents
-        : song.allEvents.filter(
-            (e) => e.trackId === null || !silenced.has(e.trackId),
-          )
+    const events = song.allEvents.filter(
+      (e) =>
+        e.trackId === null ||
+        (!silenced.has(e.trackId) &&
+          TrackMute.shouldPlayTrack(e.trackId as TrackId)(options.trackMute)),
+    )
     let buffer = await renderAudio(
       options.soundFontData,
       events,
@@ -108,7 +144,7 @@ export const exportActivitySong = async (
     )
     if (options.withVocals) {
       const chunks = await options.vocalService.loadChunks(song)
-      buffer = await mixVocals(buffer, chunks)
+      buffer = await mixVocals(buffer, chunks, song)
     }
     buffer = await mixBacking(buffer, options.backingTracks)
     audio = await encodeWAV(buffer)
@@ -143,6 +179,12 @@ export const exportActivitySong = async (
         }),
         `${name}.mid`,
       )
+    }
+  }
+
+  if (options.attachBacking === true) {
+    for (const track of options.backingTracks) {
+      form.append("part", track.file, track.file.name || `${track.name}.wav`)
     }
   }
 

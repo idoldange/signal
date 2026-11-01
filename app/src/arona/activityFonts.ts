@@ -1,5 +1,5 @@
 import { SoundFont, type SoundFontSynth } from "@signal-app/player"
-import { activityFetch, type ActivityProject } from "./activityApi"
+import { type ActivityProject, activityFetch } from "./activityApi"
 
 // Loaded by the editor as the main sound bank (see SoundFontRepository).
 const MAIN_SOUND_FONT = "generaluser-gs"
@@ -16,8 +16,7 @@ export const loadProjectFonts = async (
       project.tracks
         .map((t) => t.sf)
         .filter(
-          (sf): sf is string =>
-            !!sf && sf.toLowerCase() !== MAIN_SOUND_FONT,
+          (sf): sf is string => !!sf && sf.toLowerCase() !== MAIN_SOUND_FONT,
         ),
     ),
   ]

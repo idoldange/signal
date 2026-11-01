@@ -13,6 +13,10 @@ import React, {
   useState,
 } from "react"
 import { useSelectTrack } from "../../../actions"
+import { TrackPanControl } from "../../../arona/TrackPanControl"
+import { TrackVolumeControl } from "../../../arona/TrackVolumeControl"
+import { VocalLanguageControl } from "../../../arona/VocalLanguageControl"
+import { VocalTransposeControl } from "../../../arona/VocalTransposeControl"
 import { useContextMenu } from "../../../hooks/useContextMenu"
 import { useRouter } from "../../../hooks/useRouter"
 import { useToggleGhostTrack } from "../../../hooks/useToggleGhostTrack"
@@ -336,6 +340,10 @@ const _TrackListItem: FC<TrackListItemProps> = ({ trackId }) => {
               </ChannelName>
             )}
           </Controls>
+          {!isConductorTrack && <TrackVolumeControl trackId={trackId} />}
+          {!isConductorTrack && <TrackPanControl trackId={trackId} />}
+          {isVocalTrack && <VocalTransposeControl trackId={trackId} />}
+          {isVocalTrack && <VocalLanguageControl trackId={trackId} />}
         </div>
       </Container>
       <TrackListContextMenu {...menuProps} trackId={trackId} />

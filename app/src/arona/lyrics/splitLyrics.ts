@@ -12,7 +12,9 @@ const standalone = /[一-鿿぀-ゟ゠-ヿ가-힯]/u
 const contracted = /[ゃゅょぁぃぅぇぉャュョァィゥェォ]/u
 
 // Intl.Segmenter splits text into user perceived characters, like .NET's StringInfo text elements
-type GraphemeSegmenter = { segment(text: string): Iterable<{ segment: string }> }
+type GraphemeSegmenter = {
+  segment(text: string): Iterable<{ segment: string }>
+}
 const segmenter: GraphemeSegmenter = new (
   Intl as unknown as {
     Segmenter: new (

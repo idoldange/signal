@@ -1,5 +1,6 @@
 import styled from "@emotion/styled"
 import type { FC } from "react"
+import { BackingTrackList } from "../../../arona/BackingTrackList"
 import { DraggableList } from "../../../components/DraggableList/DraggableList"
 import { useTrackList } from "../hooks/useTrackList"
 import { AddTrackButton } from "./AddTrackButton"
@@ -23,6 +24,7 @@ export const TrackList: FC = () => {
         onItemMoved={moveTrack}
         render={(trackId) => <TrackListItem key={trackId} trackId={trackId} />}
       ></DraggableList>
+      <BackingTrackList />
       <AddTrackButton />
     </List>
   )

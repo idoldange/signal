@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react"
 import { Menu, MenuDivider, MenuItem, SubMenu } from "@signal-app/ui"
+import { useProgress, useToast } from "dialog-hooks"
 import ChevronRight from "mdi-react/ChevronRightIcon"
 import KeyboardArrowDown from "mdi-react/KeyboardArrowDownIcon"
-import { useToast, useProgress } from "dialog-hooks"
 import {
   type FC,
   useCallback,
@@ -11,21 +11,31 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
-import { useSetSong } from "../actions"
+import { useCreateSong, useSetSong } from "../actions"
 import { songFromFile } from "../actions/file"
+import { Tab } from "../components/Navigation/Navigation"
 import { useSong } from "../hooks/useSong"
 import { useStores } from "../hooks/useStores"
+import { useTrackMute } from "../hooks/useTrackMute"
+import { type ActivityProject, saveSongToChannel } from "./activityApi"
 import { type ActivityExportMode, exportActivitySong } from "./activityExport"
+import { loadProjectFonts } from "./activityFonts"
 import {
   fetchActivityProjects,
   fetchLatestSave,
+  fetchSave,
+  fetchSaveList,
   openActivityFile,
+  type SaveEntry,
 } from "./activityImport"
-import { saveSongToChannel, type ActivityProject } from "./activityApi"
-import { loadProjectFonts } from "./activityFonts"
 import { projectToSong } from "./projectToSong"
-import { getVocalTrackIds } from "./vocalTrack"
-import { Tab } from "../components/Navigation/Navigation"
+import {
+  getVocalTrackIds,
+  VOCAL_LANG_LABELS,
+  VOCAL_LANGS,
+  vocalLanguage,
+  vocalTrackFlags,
+} from "./vocalTrack"
 
 const AUDIO_EXT =
   /\.(wav|mp3|ogg|oga|opus|flac|m4a|aac|wma|aiff?|webm|mp4|mkv|mov)$/i
@@ -64,13 +74,19 @@ export const ActivityFileMenu: FC = () => {
   const { show: showProgress } = useProgress()
   const { getSong } = useSong()
   const setSong = useSetSong()
+  const createSong = useCreateSong()
   const { synth, vocalService, backingTracks } = useStores()
+  const { trackMute } = useTrackMute()
   const backing = useSyncExternalStore(
     backingTracks.subscribe,
     backingTracks.getSnapshot,
   )
   const [isOpen, setOpen] = useState(false)
   const [projects, setProjects] = useState<ActivityProject[] | null>(null)
+  const [recents, setRecents] = useState<SaveEntry[]>([])
+  const projectLang = useSyncExternalStore(vocalTrackFlags.subscribe, () =>
+    vocalLanguage.ofSong(getSong()),
+  )
   const [vocal, setVocal] = useState(() => vocalService.isEnabled)
   const [busy, setBusy] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -80,6 +96,17 @@ export const ActivityFileMenu: FC = () => {
       return
     }
     let cancelled = false
+    fetchSaveList()
+      .then((items) => {
+        if (!cancelled) {
+          setRecents(items)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecents([])
+        }
+      })
     fetchActivityProjects()
       .then((items) => {
         if (!cancelled) {
@@ -113,8 +140,15 @@ export const ActivityFileMenu: FC = () => {
         vocalService,
         withVocals: vocal,
         backingTracks: backingTracks.getSnapshot(),
+        trackMute,
+        attachBacking: true,
       })
       toast.success(`Saved to channel: ${result.files.join(", ")}`)
+      if (result.skipped !== undefined && result.skipped.length > 0) {
+        toast.error(
+          `Too big for this server, not sent: ${result.skipped.join(", ")}`,
+        )
+      }
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -128,9 +162,26 @@ export const ActivityFileMenu: FC = () => {
     showProgress,
     synth,
     toast,
+    trackMute,
     vocal,
     vocalService,
   ])
+
+  // Ctrl/Cmd+S saves to the channel (never the browser's download of the page)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "s"
+      ) {
+        e.preventDefault()
+        void onSave()
+      }
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [onSave])
 
   const onOpenLatest = useCallback(async () => {
     try {
@@ -145,6 +196,19 @@ export const ActivityFileMenu: FC = () => {
       toast.error((e as Error).message)
     }
   }, [setSong, toast])
+
+  const onOpenRecent = useCallback(
+    async (id: string) => {
+      try {
+        const save = await fetchSave(id)
+        setSong(save.song)
+        toast.success(`Opened ${save.name || "the project"}`)
+      } catch (e) {
+        toast.error((e as Error).message)
+      }
+    },
+    [setSong, toast],
+  )
 
   const onOpenProject = useCallback(
     async (project: ActivityProject) => {
@@ -175,6 +239,7 @@ export const ActivityFileMenu: FC = () => {
           vocalService,
           withVocals: vocal,
           backingTracks: backingTracks.getSnapshot(),
+          trackMute,
         })
         toast.success(`Sent to Discord: ${result.files.join(", ")}`)
       } catch (e) {
@@ -191,6 +256,7 @@ export const ActivityFileMenu: FC = () => {
       showProgress,
       synth,
       toast,
+      trackMute,
       vocal,
       vocalService,
     ],
@@ -202,37 +268,95 @@ export const ActivityFileMenu: FC = () => {
     fileInputRef.current?.click()
   }, [])
 
+  // Opens ONE project file (MIDI / UST / USTX): it replaces the song. The bot classifies the
+  // tracks (vocal / instrument / drums) and resolves their soundfonts, so a MIDI opened here
+  // behaves like one from the `!arona synth` panel; only if the bot cannot read it is a MIDI
+  // opened as a plain one.
+  const openProjectFile = useCallback(
+    async (file: File) => {
+      if (/\.midi?$/i.test(file.name)) {
+        try {
+          return await openActivityFile(file, setSong, synth)
+        } catch (err) {
+          console.warn("[arona] bot import failed, opening as plain MIDI", err)
+          setSong(await songFromFile(file))
+          return file.name
+        }
+      }
+      return await openActivityFile(file, setSong, synth)
+    },
+    [setSong, synth],
+  )
+
+  // The picker allows several files at once: every audio file becomes an audio track, and of
+  // the project files (a project replaces the song) the first one is opened.
   const onImportFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
+      const files = Array.from(e.target.files ?? [])
       e.target.value = ""
-      if (!file) {
+      if (files.length === 0) {
         return
       }
-      try {
-        if (isAudioFile(file)) {
+      const isProject = (file: File) => /\.(midi?|ustx?)$/i.test(file.name)
+      const projects = files.filter(isProject)
+      const audio = files.filter(isAudioFile)
+      const unsupported = files.filter(
+        (file) => !isProject(file) && !isAudioFile(file),
+      )
+      const messages: string[] = []
+      const errors: string[] = []
+
+      if (projects.length > 0) {
+        try {
+          messages.push(`Opened ${await openProjectFile(projects[0])}`)
+        } catch (err) {
+          errors.push(
+            `Could not read ${projects[0].name}: ${(err as Error).message}`,
+          )
+        }
+        if (projects.length > 1) {
+          errors.push(
+            `Only one project can be open: skipped ${projects
+              .slice(1)
+              .map((file) => file.name)
+              .join(", ")}`,
+          )
+        }
+      }
+
+      // one after the other: decoding several long files at once needs a lot of memory
+      let added = 0
+      for (const file of audio) {
+        try {
           await backingTracks.importFile(file)
-          toast.success(`Added audio track ${file.name}`)
-          return
+          added += 1
+        } catch (err) {
+          errors.push(`Could not read ${file.name}: ${(err as Error).message}`)
         }
-        if (/\.midi?$/i.test(file.name)) {
-          setSong(await songFromFile(file))
-          toast.success(`Opened ${file.name}`)
-          return
-        }
-        if (/\.ustx?$/i.test(file.name)) {
-          const name = await openActivityFile(file, setSong, synth)
-          toast.success(`Opened ${name}`)
-          return
-        }
-        toast.error(
-          "Supported files: MIDI, UST, USTX and audio (WAV, MP3, OGG, FLAC, M4A...)",
+      }
+      if (added > 0) {
+        messages.push(
+          added === 1
+            ? `Added audio track ${audio[0].name}`
+            : `Added ${added} audio tracks`,
         )
-      } catch (err) {
-        toast.error(`Could not read ${file.name}: ${(err as Error).message}`)
+      }
+
+      if (unsupported.length > 0) {
+        errors.push(
+          `Supported files: MIDI, UST, USTX and audio (WAV, MP3, OGG, FLAC, M4A...); skipped ${unsupported
+            .map((file) => file.name)
+            .join(", ")}`,
+        )
+      }
+      if (messages.length > 0) {
+        toast.success(messages.join(" · "))
+      }
+      if (errors.length > 0) {
+        toast.error(errors.join(" · "))
       }
     },
-    [backingTracks, setSong, synth, toast],
+    [backingTracks, openProjectFile, toast],
   )
 
   const onToggleVocal = useCallback(() => {
@@ -249,6 +373,7 @@ export const ActivityFileMenu: FC = () => {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept={ACCEPT}
         style={{ display: "none" }}
         onChange={onImportFile}
@@ -265,12 +390,77 @@ export const ActivityFileMenu: FC = () => {
           </Tab>
         }
       >
+        {/* No confirm(): dialogs can be blocked in the Discord iframe. The current song is
+            autosaved first (see "Open latest autosave"); audio tracks are cleared with it. */}
+        <MenuItem onClick={createSong}>New project</MenuItem>
+
+        <MenuDivider />
+
         <MenuItem onClick={onSave}>
           Save to channel
           <span style={{ marginLeft: "auto", opacity: 0.5 }}>Ctrl+S</span>
         </MenuItem>
 
+        <SubMenu
+          trigger={
+            <MenuItem>
+              Recents
+              <ChevronRight
+                style={{ marginLeft: "auto", fill: theme.tertiaryTextColor }}
+              />
+            </MenuItem>
+          }
+        >
+          {recents.length === 0 && (
+            <MenuItem disabled>No recent projects in this channel</MenuItem>
+          )}
+          {recents.map((entry) => (
+            <MenuItem key={entry.id} onClick={() => onOpenRecent(entry.id)}>
+              {entry.name || "Untitled"}
+              <span
+                style={{
+                  marginLeft: "auto",
+                  paddingLeft: "1rem",
+                  opacity: 0.5,
+                }}
+              >
+                {new Date(entry.saved_at).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </MenuItem>
+          ))}
+        </SubMenu>
+
         <MenuItem onClick={onOpenLatest}>Open latest autosave</MenuItem>
+
+        <SubMenu
+          trigger={
+            <MenuItem>
+              Vocal language:{" "}
+              {projectLang ? VOCAL_LANG_LABELS[projectLang] : "Auto"}
+              <ChevronRight
+                style={{ marginLeft: "auto", fill: theme.tertiaryTextColor }}
+              />
+            </MenuItem>
+          }
+        >
+          <MenuItem onClick={() => vocalLanguage.setSong(getSong(), null)}>
+            {projectLang === null ? "✓ " : ""}Auto (detect from the lyrics)
+          </MenuItem>
+          {VOCAL_LANGS.map((lang) => (
+            <MenuItem
+              key={lang}
+              onClick={() => vocalLanguage.setSong(getSong(), lang)}
+            >
+              {projectLang === lang ? "✓ " : ""}
+              {VOCAL_LANG_LABELS[lang]}
+            </MenuItem>
+          ))}
+        </SubMenu>
 
         <MenuItem onClick={onImportClick}>
           Import from computer (MIDI, UST, USTX, audio)

@@ -7,6 +7,7 @@ import {
   type Song,
   type Track,
 } from "@signal-app/core"
+import { trackPanPercent, trackVolumeDb } from "./trackVolume"
 import { isVocalTrack } from "./vocalTrack"
 
 export const getSongTempos = (song: Song): [number, number][] => {
@@ -21,10 +22,10 @@ export const getSongTempos = (song: Song): [number, number][] => {
     )
     .map(
       (e) =>
-        [e.tick, 60000000 / (e as { microsecondsPerBeat: number }).microsecondsPerBeat] as [
-          number,
-          number,
-        ],
+        [
+          e.tick,
+          60000000 / (e as { microsecondsPerBeat: number }).microsecondsPerBeat,
+        ] as [number, number],
     )
     .sort((a, b) => a[0] - b[0])
   if (tempos.length === 0) {
@@ -47,9 +48,7 @@ const DEFAULT_PITCH_POINTS = [
 // `pitch:` of a USTX note (flow style). x is in ms and y in 0.1 semitone, the same units the
 // DAW stores, so the points are written as they are.
 export const ustxPitch = (pitch: NotePitch | undefined): string => {
-  const points = hasPitch(pitch)
-    ? bakePitchOffset(pitch)
-    : DEFAULT_PITCH_POINTS
+  const points = hasPitch(pitch) ? bakePitchOffset(pitch) : DEFAULT_PITCH_POINTS
   const snapFirst = hasPitch(pitch) ? pitch.snapFirst : true
   const data = points
     .map((p) => `{x: ${p.x}, y: ${p.y}, shape: ${p.shape}}`)
@@ -101,8 +100,7 @@ export function songToUstx(song: Song): string {
     `bpm: ${bpm}`,
     "tempos:",
     ...tempos.map(
-      ([tick, bpm]) =>
-        `  - position: ${tick}\n    bpm: ${round(bpm)}`,
+      ([tick, bpm]) => `  - position: ${tick}\n    bpm: ${round(bpm)}`,
     ),
     "tracks:",
   ]
@@ -110,14 +108,14 @@ export function songToUstx(song: Song): string {
   for (const track of tracks) {
     const vocal = isVocalTrack(track)
     lines.push(
-      `  - track_name: ${JSON.stringify(vocal ? track.name ?? "Vocal" : instrumentName(track))}`,
+      `  - track_name: ${JSON.stringify(vocal ? (track.name ?? "Vocal") : instrumentName(track))}`,
       `    singer: ${vocal ? '"Arona"' : '""'}`,
       '    phonemizer: "OpenUtau.Core.DefaultPhonemizer"',
       '    renderer: "CLASSIC"',
       "    mute: false",
       "    solo: false",
-      "    volume: 0",
-      "    pan: 0",
+      `    volume: ${trackVolumeDb(track)}`,
+      `    pan: ${trackPanPercent(track)}`,
     )
   }
 

@@ -1,4 +1,5 @@
 import { type Song, songToMidi } from "@signal-app/core"
+import { vocalLanguage } from "./vocalTrack"
 
 // Filled by arona-boot.js after the Discord Embedded App SDK login
 export interface AronaAuth {
@@ -27,8 +28,7 @@ export class ActivityApiError extends Error {
   }
 }
 
-export const currentAuth = (): AronaAuth | null =>
-  window.__arona?.auth ?? null
+export const currentAuth = (): AronaAuth | null => window.__arona?.auth ?? null
 
 export const getActivityAuth = async (): Promise<AronaAuth | null> => {
   const state = window.__arona
@@ -122,12 +122,19 @@ export interface VocalChunkInfo {
 export const activitySaveName = (song: Song) =>
   encodeURIComponent(song.name.trim() || "arona")
 
+// name + singing languages of the project, stored next to the save so Recents reopens them
+export const activitySaveHeaders = (song: Song): Record<string, string> => ({
+  "X-Save-Name": activitySaveName(song),
+  "X-Save-Lang": vocalLanguage.ofSong(song) ?? "auto",
+  "X-Save-Tracks": JSON.stringify(vocalLanguage.tracksOf(song)),
+})
+
 export const saveSongToChannel = async (song: Song) =>
   activityJson<{ ok: boolean; saved_at: number }>("/api/save", {
     method: "POST",
     headers: {
       "Content-Type": "audio/midi",
-      "X-Save-Name": activitySaveName(song),
+      ...activitySaveHeaders(song),
     },
     body: songToMidi(song) as unknown as BodyInit,
   })
@@ -143,7 +150,7 @@ export const saveSongOnExit = (song: Song) => {
     method: "POST",
     headers: withAuthHeaders(auth, {
       "Content-Type": "audio/midi",
-      "X-Save-Name": activitySaveName(song),
+      ...activitySaveHeaders(song),
     }),
     body: data as unknown as BodyInit,
     keepalive: true,

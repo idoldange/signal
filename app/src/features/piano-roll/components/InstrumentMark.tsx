@@ -47,7 +47,7 @@ export const InstrumentMark: FC<{
   }, [transform, event.tick])
   const [isOpenInstrumentBrowser, setIsOpenInstrumentBrowser] = useState(false)
   const { selectedTrackId } = usePianoRoll()
-  const { removeEvents, updateEvent } = useTrack(selectedTrackId)
+  const { removeEvents, updateEvent, isVocalTrack } = useTrack(selectedTrackId)
   const { pushHistory } = useHistory()
   const { quantizeRound } = useQuantizer()
 
@@ -96,8 +96,19 @@ export const InstrumentMark: FC<{
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
       >
-        <InstrumentEmoji programNumber={event.value} isRhythmTrack={false} />{" "}
-        <InstrumentName programNumber={event.value} isRhythmTrack={false} />
+        {/* The program number of a vocal track is only a placeholder (choir) patch,
+            the voice itself is sung by Arona Vocal, so show that instead. */}
+        {isVocalTrack ? (
+          <>🎤 Arona Vocal</>
+        ) : (
+          <>
+            <InstrumentEmoji
+              programNumber={event.value}
+              isRhythmTrack={false}
+            />{" "}
+            <InstrumentName programNumber={event.value} isRhythmTrack={false} />
+          </>
+        )}
       </Container>
       <InstrumentBrowser
         isOpen={isOpenInstrumentBrowser}

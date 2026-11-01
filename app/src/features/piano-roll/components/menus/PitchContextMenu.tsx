@@ -10,8 +10,8 @@ import { useHistory } from "../../../../hooks/useHistory"
 import {
   DEFAULT_VIBRATO,
   removePoint,
-  setVibrato,
   setPointShape,
+  setVibrato,
   toggleSnapFirst,
 } from "../../entities/pitchCurve"
 import { usePianoRollEditor } from "../../hooks/usePianoRollEditor"

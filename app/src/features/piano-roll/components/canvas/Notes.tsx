@@ -1,5 +1,6 @@
 import { GLFallback, HitArea } from "@ryohey/webgl-react"
 import React, { type FC, useCallback, useMemo } from "react"
+import { useTrack } from "../../../../hooks/useTrack"
 import { useSettings } from "../../../setting/hooks/useSettings"
 import { useAddNoteToSelectionGesture } from "../../gestures/useAddNoteToSelectionGesture"
 import {
@@ -49,6 +50,9 @@ const _Notes: FC<NotesContentProps> = ({ zIndex, notes }) => {
   const { borderColor, inactiveColor, activeColor, selectedColor } =
     useNoteColor()
   const { showNoteLabels } = useSettings()
+  const { selectedTrackId } = usePianoRoll()
+  // Vocal tracks draw their lyric on the note (NoteLyrics), so the note name would overlap it.
+  const { isVocalTrack } = useTrack(selectedTrackId)
 
   return (
     <>
@@ -72,7 +76,7 @@ const _Notes: FC<NotesContentProps> = ({ zIndex, notes }) => {
             rects={notes}
             zIndex={zIndex + 0.1}
           />
-          {showNoteLabels && <NoteLabels rects={notes} zIndex={zIndex + 0.2} />}
+          {showNoteLabels && !isVocalTrack && <NoteLabels rects={notes} zIndex={zIndex + 0.2} />}
         </>
       )}
     </>

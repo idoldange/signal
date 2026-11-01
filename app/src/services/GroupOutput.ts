@@ -11,9 +11,30 @@ export interface SynthEntry {
 // Routing of MIDI events to multiple SynthOutputs and muting of tracks
 export class GroupOutput implements SynthOutput {
   outputs: SynthEntry[] = []
-  trackMute = TrackMute.empty
+  private _trackMute = TrackMute.empty
+  private trackMuteListeners = new Set<() => void>()
+  readonly onTrackMuteChanged = {
+    subscribe: (callback: () => void) => {
+      this.trackMuteListeners.add(callback)
+      return () => {
+        this.trackMuteListeners.delete(callback)
+      }
+    },
+  }
   // Tracks whose soundfont output is replaced by something else (the Arona vocal).
   silencedTrackIds: ReadonlySet<TrackId> = new Set()
+
+  get trackMute(): TrackMute {
+    return this._trackMute
+  }
+
+  set trackMute(value: TrackMute) {
+    if (this._trackMute === value) {
+      return
+    }
+    this._trackMute = value
+    this.trackMuteListeners.forEach((callback) => callback())
+  }
 
   private _isMetronomeEnabled = false
   private isMetronomeEnabledListeners = new Set<() => void>()

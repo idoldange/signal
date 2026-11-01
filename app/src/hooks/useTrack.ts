@@ -1,13 +1,20 @@
 import {
   isNoteEvent,
+  isPanEvent,
   isProgramChangeEvent,
+  isVolumeEvent,
   type Track,
   type TrackColor,
   type TrackEvent,
   type TrackId,
 } from "@signal-app/core"
 import { useCallback, useSyncExternalStore } from "react"
-import { hasLyricNotes, vocalTrackFlags } from "../arona/vocalTrack"
+import { trackPan, trackVolume } from "../arona/trackVolume"
+import {
+  hasLyricNotes,
+  vocalTrackFlags,
+  vocalTrackTranspose,
+} from "../arona/vocalTrack"
 import { TrackMute } from "../trackMute/TrackMute"
 import { usePlayer } from "./usePlayer"
 import { useSong } from "./useSong"
@@ -70,6 +77,38 @@ export function useTrack(id: TrackId) {
         return value
       }, [track])
       return useSyncExternalStore(subscribe, getSnapshot)
+    },
+    // Manual transpose of a vocal track in semitones, null = auto octave.
+    get vocalTranspose() {
+      return useSyncExternalStore(
+        vocalTrackFlags.subscribe,
+        useCallback(
+          () => (track ? vocalTrackTranspose.get(track) : null),
+          [track],
+        ),
+      )
+    },
+    // Pan of the track (MIDI pan at the start of the song, 64 = centre).
+    get pan() {
+      return useSyncExternalStore(
+        useCallback(
+          (listener: () => void) =>
+            track?.subscribeEventsChanged(isPanEvent, listener) ?? noop,
+          [track],
+        ),
+        useCallback(() => (track ? trackPan(track) : 64), [track]),
+      )
+    },
+    // Volume of the track (MIDI volume at the start of the song), default 100.
+    get volume() {
+      return useSyncExternalStore(
+        useCallback(
+          (listener: () => void) =>
+            track?.subscribeEventsChanged(isVolumeEvent, listener) ?? noop,
+          [track],
+        ),
+        useCallback(() => (track ? trackVolume(track) : 100), [track]),
+      )
     },
     get programNumber() {
       const { position } = usePlayer()

@@ -21,11 +21,7 @@ export const tickToMs = (
   return (sec + ((tick - prevTick) * 60) / (prevBpm * ppq)) * 1000
 }
 
-export const msToTick = (
-  ms: number,
-  ppq: number,
-  tempos: TempoMap,
-): number => {
+export const msToTick = (ms: number, ppq: number, tempos: TempoMap): number => {
   const target = ms / 1000
   let sec = 0
   let prevTick = 0

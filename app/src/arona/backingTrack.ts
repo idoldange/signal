@@ -9,12 +9,22 @@ const MAX_DRIFT_SEC = 0.5
 // Same output latency offset as the vocal tracks.
 const PLAY_LATENCY_SEC = 0.05
 
+export const effectiveGain = (track: Pick<BackingTrack, "volume" | "muted">) =>
+  track.muted ? 0 : track.volume
+
 export interface BackingTrack {
   // identity of the picked file (name, size, last modified): the same file is not added twice
   key: string
   id: number
   name: string
   buffer: AudioBuffer
+  // the file as it was picked, kept so Save can send / store it with the project
+  file: File
+  // 0..1, applied on top of the shared output gain
+  volume: number
+  // -1 (left) .. 1 (right)
+  pan: number
+  muted: boolean
 }
 
 // WAV/audio files imported from the computer. Signal projects are MIDI-only, so audio tracks
@@ -25,6 +35,9 @@ export class BackingTrackService {
   private gain: GainNode | null = null
   private tracks: BackingTrack[] = []
   private sources = new Map<number, AudioBufferSourceNode>()
+  // One gain per playing track, so volume/mute follow the slider while it plays.
+  private trackGains = new Map<number, GainNode>()
+  private trackPanners = new Map<number, StereoPannerNode>()
   private anchor: { sec: number; ctxTime: number } | null = null
   private nextId = 1
   private listeners = new Set<() => void>()
@@ -84,6 +97,10 @@ export class BackingTrackService {
       name: file.name,
       buffer,
       key,
+      file,
+      volume: 1,
+      pan: 0,
+      muted: false,
     }
     this.tracks = [...this.tracks, track]
     this.emit()
@@ -91,6 +108,39 @@ export class BackingTrackService {
       this.resync(this.currentSec())
     }
     return track
+  }
+
+  setVolume = (id: number, volume: number) => {
+    this.update(id, { volume: Math.max(0, Math.min(1, volume)) })
+  }
+
+  setPan = (id: number, pan: number) => {
+    this.update(id, { pan: Math.max(-1, Math.min(1, pan)) })
+  }
+
+  setMuted = (id: number, muted: boolean) => {
+    this.update(id, { muted })
+  }
+
+  private update(
+    id: number,
+    patch: Partial<Pick<BackingTrack, "volume" | "pan" | "muted">>,
+  ) {
+    const track = this.tracks.find((t) => t.id === id)
+    if (track === undefined) {
+      return
+    }
+    const next = { ...track, ...patch }
+    this.tracks = this.tracks.map((t) => (t.id === id ? next : t))
+    const gain = this.trackGains.get(id)
+    if (gain !== undefined) {
+      gain.gain.value = effectiveGain(next)
+    }
+    const panner = this.trackPanners.get(id)
+    if (panner !== undefined) {
+      panner.pan.value = next.pan
+    }
+    this.emit()
   }
 
   remove = (id: number) => {
@@ -127,17 +177,18 @@ export class BackingTrackService {
 
   private currentSec() {
     const song = this.songStore.song
-    return tickToSec(
-      this.player.position,
-      song.timebase,
-      getSongTempos(song),
-    )
+    return tickToSec(this.player.position, song.timebase, getSongTempos(song))
   }
 
+  // Audio tracks are not part of the song, so opening/importing a MIDI or starting a new
+  // project does not throw them away (they are easy to lose, and slow to import again).
+  // Only the user removes them. Playback is just restarted for the new song.
   private onSongReplaced = () => {
     this.anchor = null
     this.stopAllSources()
-    this.clear()
+    if (this.player.isPlaying) {
+      this.resync(this.currentSec())
+    }
   }
 
   private onPlayingChanged = () => {
@@ -179,17 +230,24 @@ export class BackingTrackService {
       return
     }
     const now = this.ctx.currentTime
-    const when =
-      this.anchor.ctxTime - this.anchor.sec + PLAY_LATENCY_SEC
+    const when = this.anchor.ctxTime - this.anchor.sec + PLAY_LATENCY_SEC
     const source = this.ctx.createBufferSource()
     source.buffer = track.buffer
-    source.connect(this.gain)
+    const trackGain = this.ctx.createGain()
+    trackGain.gain.value = effectiveGain(track)
+    const panner = this.ctx.createStereoPanner()
+    panner.pan.value = track.pan
+    source.connect(trackGain)
+    trackGain.connect(panner)
+    panner.connect(this.gain)
     if (when >= now) {
       source.start(when)
     } else {
       const offset = now - when
       if (offset >= track.buffer.duration) {
         source.disconnect()
+        trackGain.disconnect()
+        panner.disconnect()
         return
       }
       source.start(now, offset)
@@ -197,10 +255,16 @@ export class BackingTrackService {
     source.onended = () => {
       if (this.sources.get(track.id) === source) {
         this.sources.delete(track.id)
+        this.trackGains.delete(track.id)
+        this.trackPanners.delete(track.id)
       }
       source.disconnect()
+      trackGain.disconnect()
+      panner.disconnect()
     }
     this.sources.set(track.id, source)
+    this.trackGains.set(track.id, trackGain)
+    this.trackPanners.set(track.id, panner)
   }
 
   private stopSource(id: number) {
@@ -215,6 +279,10 @@ export class BackingTrackService {
     }
     source.disconnect()
     this.sources.delete(id)
+    this.trackGains.get(id)?.disconnect()
+    this.trackGains.delete(id)
+    this.trackPanners.get(id)?.disconnect()
+    this.trackPanners.delete(id)
   }
 
   private stopAllSources() {

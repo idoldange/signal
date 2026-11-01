@@ -2,12 +2,13 @@ import { type Song, songFromMidi } from "@signal-app/core"
 import type { SoundFontSynth } from "@signal-app/player"
 import {
   ActivityApiError,
+  type ActivityProject,
   activityFetch,
   activityJson,
-  type ActivityProject,
 } from "./activityApi"
 import { loadProjectFonts } from "./activityFonts"
 import { projectToSong } from "./projectToSong"
+import { vocalLanguage } from "./vocalTrack"
 
 export const fetchActivityProjects = async (): Promise<ActivityProject[]> => {
   const body = await activityJson<{ projects?: ActivityProject[] }>(
@@ -22,25 +23,47 @@ export interface LatestSave {
   savedAt: number
 }
 
+// One entry of Recents: the newest save of a project of this voice channel.
+export interface SaveEntry {
+  id: string
+  name: string
+  saved_at: number
+  user: number | string
+  lang: string
+}
+
+// A save (autosave or Save to channel) -> song, with its singing languages restored.
+const songFromSave = async (res: Response): Promise<LatestSave> => {
+  const data = await res.arrayBuffer()
+  const song = songFromMidi(new Uint8Array(data))
+  const headerName = res.headers.get("X-Save-Name")
+  if (headerName) {
+    try {
+      song.name = decodeURIComponent(headerName)
+    } catch {
+      song.name = headerName
+    }
+  }
+  let tracks: Record<string, unknown> | null = null
+  try {
+    const parsed: unknown = JSON.parse(res.headers.get("X-Save-Tracks") ?? "{}")
+    tracks =
+      typeof parsed === "object" ? (parsed as Record<string, unknown>) : null
+  } catch {
+    tracks = null
+  }
+  vocalLanguage.restore(song, res.headers.get("X-Save-Lang"), tracks)
+  song.isSaved = true
+  return {
+    song,
+    name: song.name,
+    savedAt: Number(res.headers.get("X-Saved-At")) || Date.now(),
+  }
+}
+
 export const fetchLatestSave = async (): Promise<LatestSave | null> => {
   try {
-    const res = await activityFetch("/api/save/latest")
-    const data = await res.arrayBuffer()
-    const song = songFromMidi(new Uint8Array(data))
-    const headerName = res.headers.get("X-Save-Name")
-    if (headerName) {
-      try {
-        song.name = decodeURIComponent(headerName)
-      } catch {
-        song.name = headerName
-      }
-    }
-    song.isSaved = true
-    return {
-      song,
-      name: song.name,
-      savedAt: Number(res.headers.get("X-Saved-At")) || Date.now(),
-    }
+    return await songFromSave(await activityFetch("/api/save/latest"))
   } catch (e) {
     if (e instanceof ActivityApiError && e.status === 404) {
       return null
@@ -48,6 +71,12 @@ export const fetchLatestSave = async (): Promise<LatestSave | null> => {
     throw e
   }
 }
+
+export const fetchSaveList = async (): Promise<SaveEntry[]> =>
+  (await activityJson<{ saves?: SaveEntry[] }>("/api/save/list")).saves ?? []
+
+export const fetchSave = async (id: string): Promise<LatestSave> =>
+  await songFromSave(await activityFetch(`/api/save/${encodeURIComponent(id)}`))
 
 // .mid/.ust/.ustx opened from the computer: the bot parses and classifies it (same code as
 // the `!arona synth` panel), so instruments, soundfonts and vocal tracks stay correct.
