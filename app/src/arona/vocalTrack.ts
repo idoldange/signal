@@ -205,3 +205,303 @@ export const vocalLanguage = {
     notifyListeners()
   },
 }
+
+// "Even stretch" mode of a vocal track: skip the syllable alignment and stretch each phrase evenly
+// (fallback when the automatic alignment of a track keeps missing the beat).
+const stretched = new WeakSet<Track>()
+export const vocalTrackStretch = {
+  has: (track: Track) => stretched.has(track),
+  set(track: Track, value: boolean) {
+    if (stretched.has(track) === value) {
+      return
+    }
+    if (value) {
+      stretched.add(track)
+    } else {
+      stretched.delete(track)
+    }
+    notifyListeners()
+  },
+}
+
+// Manual syllable nudge of a note: a <+30> / <-20> tag (milliseconds) at the start of the lyric
+// text (after the optional {xx} language tag). Positive = the syllable starts later in the
+// generated voice, negative = earlier. It lives in the lyric so it survives MIDI/USTX files.
+const LEADING_TAGS = /^(?:<[+-]?\d{1,4}>|<t\d*\.?\d+>|<s\d{1,10}>)+/
+// How far a syllable boundary may be moved from the automatic one. The server applies the
+// same limit; within a phrase the neighbours (20 ms apart) are the real constraint.
+export const MAX_NUDGE_MS = 3000
+
+// Tags at the start of the lyric text (after the optional {xx} language tag):
+//   <+30> / <-20>  syllable nudge in ms        <t0.7>  temperature       <s123>  seed
+// They live in the lyric so they survive MIDI/USTX files.
+export interface LyricTags {
+  nudge: number
+  temp: number | null
+  seed: number | null
+  text: string
+}
+
+export const splitTags = (text: string): LyricTags => {
+  const out: LyricTags = { nudge: 0, temp: null, seed: null, text }
+  const match = LEADING_TAGS.exec(text)
+  if (match === null) {
+    return out
+  }
+  out.text = text.slice(match[0].length)
+  for (const tag of match[0].match(/<[^>]+>/g) ?? []) {
+    if (tag[1] === "t") {
+      out.temp = Number(tag.slice(2, -1))
+    } else if (tag[1] === "s") {
+      out.seed = Number(tag.slice(2, -1))
+    } else {
+      out.nudge = Number(tag.slice(1, -1))
+    }
+  }
+  return out
+}
+
+export const splitNudge = (text: string): { nudge: number; text: string } => {
+  const { nudge, text: rest } = splitTags(text)
+  return { nudge, text: rest }
+}
+
+// The lyric with some tags replaced (null = remove that tag, undefined = keep it).
+export const withTags = (
+  lyric: string,
+  patch: { nudge?: number; temp?: number | null; seed?: number | null },
+): string => {
+  const { lang, text } = splitLangTag(lyric)
+  const cur = splitTags(text)
+  const ms = Math.max(
+    -MAX_NUDGE_MS,
+    Math.min(MAX_NUDGE_MS, Math.round(patch.nudge ?? cur.nudge)),
+  )
+  const temp = patch.temp === undefined ? cur.temp : patch.temp
+  const seed = patch.seed === undefined ? cur.seed : patch.seed
+  const tags =
+    (ms === 0 ? "" : `<${ms > 0 ? "+" : ""}${ms}>`) +
+    (temp === null ? "" : `<t${Math.round(temp * 100) / 100}>`) +
+    (seed === null ? "" : `<s${Math.round(seed)}>`)
+  return `${lang === null ? "" : `{${lang}}`}${tags}${cur.text}`
+}
+
+export const withNudge = (lyric: string, nudge: number): string =>
+  withTags(lyric, { nudge })
+
+export const nudgeOf = (lyric: string): number =>
+  splitTags(splitLangTag(lyric).text).nudge
+
+// Generation settings (temperature / seed) of a project and of each vocal track. A note can
+// override them with its own <t..>/<s..> tags; precedence: note > track > project.
+export interface VocalGen {
+  temperature?: number
+  seed?: number
+}
+export type VocalGenChange = {
+  temperature?: number | null
+  seed?: number | null
+}
+
+const songGen = new WeakMap<Song, VocalGen>()
+const trackGen = new WeakMap<Track, VocalGen>()
+
+const changeGen = <K extends object>(
+  map: WeakMap<K, VocalGen>,
+  key: K,
+  change: VocalGenChange,
+) => {
+  const next: VocalGen = { ...(map.get(key) ?? {}) }
+  if (change.temperature !== undefined) {
+    if (change.temperature === null) {
+      delete next.temperature
+    } else {
+      next.temperature = change.temperature
+    }
+  }
+  if (change.seed !== undefined) {
+    if (change.seed === null) {
+      delete next.seed
+    } else {
+      next.seed = change.seed
+    }
+  }
+  if (Object.keys(next).length === 0) {
+    map.delete(key)
+  } else {
+    map.set(key, next)
+  }
+  notifyListeners()
+}
+
+export const vocalGen = {
+  ofSong: (song: Song): VocalGen => songGen.get(song) ?? {},
+  ofTrack: (track: Track): VocalGen => trackGen.get(track) ?? {},
+  setSong: (song: Song, change: VocalGenChange) =>
+    changeGen(songGen, song, change),
+  setTrack: (track: Track, change: VocalGenChange) =>
+    changeGen(trackGen, track, change),
+  resolved: (song: Song, track: Track): VocalGen => ({
+    ...songGen.get(song),
+    ...trackGen.get(track),
+  }),
+}
+
+export const MAX_SEED = 2147483646
+export const randomSeed = () => Math.floor(Math.random() * MAX_SEED) + 1
+
+// Playback-only effects of one track: "echo" is a karaoke-style reverb that also smooths the voice
+// (0 = off, 1..100 = intensity); "slope" makes the volume lane ramp between its points instead of
+// stepping (columns). They never change the generated voice, so they have their own listeners.
+export interface TrackFx {
+  echo: number
+  slope: boolean
+}
+const fxMap = new WeakMap<Track, TrackFx>()
+const fxListeners = new Set<() => void>()
+const NO_FX: TrackFx = { echo: 0, slope: false }
+export const trackFx = {
+  get: (track: Track): TrackFx => fxMap.get(track) ?? NO_FX,
+  set(track: Track, change: Partial<TrackFx>) {
+    const prev = trackFx.get(track)
+    const next: TrackFx = {
+      echo: Math.max(0, Math.min(100, Math.round(change.echo ?? prev.echo))),
+      slope: change.slope ?? prev.slope,
+    }
+    if (next.echo === prev.echo && next.slope === prev.slope) {
+      return
+    }
+    if (next.echo === 0 && !next.slope) {
+      fxMap.delete(track)
+    } else {
+      fxMap.set(track, next)
+    }
+    fxListeners.forEach((l) => l())
+  },
+  subscribe(listener: () => void) {
+    fxListeners.add(listener)
+    return () => {
+      fxListeners.delete(listener)
+    }
+  },
+}
+
+// Per-track state that is not stored in the MIDI itself (flag "Arona Vocal", manual transpose):
+// {vocal: [trackIndex], transpose: {trackIndex: semitones}} travels with every save.
+export interface VocalSaveMeta {
+  vocal: number[]
+  transpose: Record<string, number>
+  stretch?: number[]
+  gen?: VocalGen
+  trackGen?: Record<string, VocalGen>
+  fx?: Record<string, TrackFx>
+}
+
+export const vocalSaveMeta = {
+  of: (song: Song): VocalSaveMeta => {
+    const meta: VocalSaveMeta = { vocal: [], transpose: {}, stretch: [] }
+    if (Object.keys(vocalGen.ofSong(song)).length > 0) {
+      meta.gen = vocalGen.ofSong(song)
+    }
+    song.tracks.forEach((track, index) => {
+      if (Object.keys(vocalGen.ofTrack(track)).length > 0) {
+        meta.trackGen ??= {}
+        meta.trackGen[String(index)] = vocalGen.ofTrack(track)
+      }
+      const fx = trackFx.get(track)
+      if (fx.echo > 0 || fx.slope) {
+        meta.fx ??= {}
+        meta.fx[String(index)] = { ...fx }
+      }
+      if (vocalTrackStretch.has(track)) {
+        meta.stretch?.push(index)
+      }
+      if (vocalTrackFlags.has(track)) {
+        meta.vocal.push(index)
+      }
+      const t = vocalTrackTranspose.get(track)
+      if (t !== null) {
+        meta.transpose[String(index)] = t
+      }
+    })
+    return meta
+  },
+  restore: (song: Song, raw: unknown) => {
+    if (typeof raw !== "object" || raw === null) {
+      return
+    }
+    const meta = raw as Partial<VocalSaveMeta>
+    for (const index of Array.isArray(meta.vocal) ? meta.vocal : []) {
+      const track = song.tracks[Number(index)]
+      if (track !== undefined) {
+        vocalTrackFlags.set(track, true)
+      }
+    }
+    const num = (v: unknown) =>
+      typeof v === "number" && Number.isFinite(v) ? v : undefined
+    const restoreGen = (g: unknown): VocalGenChange => {
+      const o = (typeof g === "object" && g !== null ? g : {}) as VocalGen
+      const out: VocalGenChange = {}
+      const temperature = num(o.temperature)
+      if (temperature !== undefined) {
+        out.temperature = temperature
+      }
+      const seed = num(o.seed)
+      if (seed !== undefined) {
+        out.seed = seed
+      }
+      return out
+    }
+    if (meta.gen !== undefined) {
+      vocalGen.setSong(song, restoreGen(meta.gen))
+    }
+    for (const [index, g] of Object.entries(meta.trackGen ?? {})) {
+      const track = song.tracks[Number(index)]
+      if (track !== undefined) {
+        vocalGen.setTrack(track, restoreGen(g))
+      }
+    }
+    for (const [index, f] of Object.entries(meta.fx ?? {})) {
+      const track = song.tracks[Number(index)]
+      if (track !== undefined && typeof f === "object" && f !== null) {
+        trackFx.set(track, {
+          echo: num((f as TrackFx).echo) ?? 0,
+          slope: (f as TrackFx).slope === true,
+        })
+      }
+    }
+    for (const index of Array.isArray(meta.stretch) ? meta.stretch : []) {
+      const track = song.tracks[Number(index)]
+      if (track !== undefined) {
+        vocalTrackStretch.set(track, true)
+      }
+    }
+    for (const [index, value] of Object.entries(meta.transpose ?? {})) {
+      const track = song.tracks[Number(index)]
+      if (track !== undefined && typeof value === "number") {
+        vocalTrackTranspose.set(track, value)
+      }
+    }
+  },
+}
+
+// Everything vocal that lives next to the song (not in it): languages, vocal flags, transposes,
+// align mode, temperature / seed, echo. Undo / redo rebuild the whole Song (new Track objects), so
+// the history snapshots this and puts it back, otherwise Ctrl+Z would reset all of it.
+export interface VocalSnapshot {
+  lang: VocalLang | null
+  tracks: Record<string, VocalLang>
+  meta: VocalSaveMeta
+}
+
+export const vocalSnapshot = {
+  of: (song: Song): VocalSnapshot => ({
+    lang: vocalLanguage.ofSong(song),
+    tracks: vocalLanguage.tracksOf(song),
+    meta: vocalSaveMeta.of(song),
+  }),
+  restore: (song: Song, snap: VocalSnapshot) => {
+    vocalLanguage.restore(song, snap.lang, snap.tracks)
+    vocalSaveMeta.restore(song, snap.meta)
+  },
+}

@@ -8,7 +8,7 @@ import {
 } from "./activityApi"
 import { loadProjectFonts } from "./activityFonts"
 import { projectToSong } from "./projectToSong"
-import { vocalLanguage } from "./vocalTrack"
+import { vocalLanguage, vocalSaveMeta } from "./vocalTrack"
 
 export const fetchActivityProjects = async (): Promise<ActivityProject[]> => {
   const body = await activityJson<{ projects?: ActivityProject[] }>(
@@ -53,6 +53,14 @@ const songFromSave = async (res: Response): Promise<LatestSave> => {
     tracks = null
   }
   vocalLanguage.restore(song, res.headers.get("X-Save-Lang"), tracks)
+  try {
+    vocalSaveMeta.restore(
+      song,
+      JSON.parse(res.headers.get("X-Save-Meta") ?? "null"),
+    )
+  } catch {
+    // old save without meta
+  }
   song.isSaved = true
   return {
     song,

@@ -1,5 +1,5 @@
 import { type Song, songToMidi } from "@signal-app/core"
-import { vocalLanguage } from "./vocalTrack"
+import { vocalLanguage, vocalSaveMeta } from "./vocalTrack"
 
 // Filled by arona-boot.js after the Discord Embedded App SDK login
 export interface AronaAuth {
@@ -127,6 +127,7 @@ export const activitySaveHeaders = (song: Song): Record<string, string> => ({
   "X-Save-Name": activitySaveName(song),
   "X-Save-Lang": vocalLanguage.ofSong(song) ?? "auto",
   "X-Save-Tracks": JSON.stringify(vocalLanguage.tracksOf(song)),
+  "X-Save-Meta": JSON.stringify(vocalSaveMeta.of(song)),
 })
 
 export const saveSongToChannel = async (song: Song) =>
@@ -139,6 +140,10 @@ export const saveSongToChannel = async (song: Song) =>
     body: songToMidi(song) as unknown as BodyInit,
   })
 
+// keepalive requests are capped at 64 KiB by browsers: a bigger body would be rejected and the
+// save silently lost, so those rely on the periodic autosave instead (ActivityAutoSave).
+const KEEPALIVE_MAX = 60 * 1024
+
 // pagehide/beforeunload: fetch keepalive survives the iframe going away
 export const saveSongOnExit = (song: Song) => {
   const auth = currentAuth()
@@ -146,6 +151,9 @@ export const saveSongOnExit = (song: Song) => {
     return
   }
   const data = songToMidi(song)
+  if (data.byteLength > KEEPALIVE_MAX) {
+    return
+  }
   void fetch(`${auth.baseUrl}/api/save`, {
     method: "POST",
     headers: withAuthHeaders(auth, {
@@ -158,3 +166,27 @@ export const saveSongOnExit = (song: Song) => {
     // the page is going away; nothing useful can be reported
   })
 }
+
+// "Edit on waveform": the raw voice of the chunk that holds a note + where each syllable starts.
+export interface AlignGroup {
+  pos: number | null
+  text: string
+  start_ms: number
+  nudge: number
+}
+
+export interface AlignPhrase {
+  aligned: boolean
+  sr: number
+  dur_ms: number
+  end_ms?: number
+  wav: string
+  groups: AlignGroup[]
+}
+
+export const fetchAlignView = async (body: unknown) =>
+  activityJson<{ phrases: AlignPhrase[] }>("/api/vocal/alignview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })

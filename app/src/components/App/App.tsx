@@ -8,6 +8,7 @@ import {
 import React from "react"
 import { HelmetProvider } from "react-helmet-async"
 import { ActivityAutoSave } from "../../arona/ActivityAutoSave"
+import { AlignDialog } from "../../arona/AlignDialog"
 import { ArrangeViewProvider } from "../../features/arrange/hooks/useArrangeView"
 import { MIDIDeviceProvider } from "../../features/midi-device/hooks/useMIDIDevice"
 import { PianoRollProvider } from "../../features/piano-roll/context/PianoRollProvider"
@@ -34,19 +35,20 @@ export function App() {
                 <DialogProvider component={ActionDialog}>
                   <ProgressProvider component={ProgressDialog}>
                     <LocalizationProvider>
-                        <MIDIDeviceProvider>
-                          <TrackMuteProvider>
-                            <PianoRollProvider>
-                              <ArrangeViewProvider>
-                                <TempoEditorProvider>
-                                  <GlobalCSS />
-                                  <ActivityAutoSave />
-                                  <RootView />
-                                </TempoEditorProvider>
-                              </ArrangeViewProvider>
-                            </PianoRollProvider>
-                          </TrackMuteProvider>
-                        </MIDIDeviceProvider>
+                      <MIDIDeviceProvider>
+                        <TrackMuteProvider>
+                          <PianoRollProvider>
+                            <ArrangeViewProvider>
+                              <TempoEditorProvider>
+                                <GlobalCSS />
+                                <ActivityAutoSave />
+                                <AlignDialog />
+                                <RootView />
+                              </TempoEditorProvider>
+                            </ArrangeViewProvider>
+                          </PianoRollProvider>
+                        </TrackMuteProvider>
+                      </MIDIDeviceProvider>
                     </LocalizationProvider>
                   </ProgressProvider>
                 </DialogProvider>

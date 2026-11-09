@@ -26,8 +26,12 @@ import {
   autoTransposeOf,
   getVocalTrackIds,
   splitLangTag,
+  splitTags,
+  vocalGen,
   vocalLanguage,
+  trackFx,
   vocalTrackFlags,
+  vocalTrackStretch,
   vocalTrackTranspose,
 } from "./vocalTrack"
 
@@ -112,6 +116,11 @@ interface VocalNote {
   transpose?: number
   // singing language (absent = detected by the server)
   lang?: string
+  // manual syllable nudge in ms (absent = 0), see splitNudge
+  nudge?: number
+  // temperature / seed of this note (overrides track and project), see splitTags
+  temp?: number
+  seed?: number
 }
 
 // Every vocal track is planned and synthesized on its own: its phrases are cached by their
@@ -143,18 +152,17 @@ export const buildVocalBodies = (song: Song, trackMute: TrackMute) => {
       }
       const lyric = event.lyric?.trim() ?? ""
       if (lyric !== "" || flagged) {
-        const { lang: noteLang, text } = splitLangTag(lyric)
+        const { lang: noteLang, text: tagged } = splitLangTag(lyric)
+        const { nudge, temp, seed, text } = splitTags(tagged)
         const lang = noteLang ?? trackLang
         notes.push({
           pos: event.tick,
           dur: event.duration,
           tone: event.noteNumber,
-          lyric:
-            text !== ""
-              ? noteLang !== null
-                ? text
-                : (event.lyric ?? lyric)
-              : "a",
+          lyric: text !== "" ? text : "a",
+          ...(nudge !== 0 ? { nudge } : {}),
+          ...(temp !== null ? { temp } : {}),
+          ...(seed !== null ? { seed } : {}),
           ...(lang !== null ? { lang } : {}),
           ...(hasPitch(event.pitch) ? { pitch: event.pitch } : {}),
           ...(manual !== null ? { transpose: manual } : {}),
@@ -168,7 +176,17 @@ export const buildVocalBodies = (song: Song, trackMute: TrackMute) => {
     bodies.push({
       trackId: track.id,
       // no track name: the phrase hash depends on the notes only, so it is shared
-      body: { ppq: song.timebase, tempos, notes, params, track: "vocal" },
+      body: {
+        ppq: song.timebase,
+        tempos,
+        notes,
+        params: {
+          ...params,
+          ...vocalGen.resolved(song, track),
+          ...(vocalTrackStretch.has(track) ? { align: "stretch" } : {}),
+        },
+        track: "vocal",
+      },
     })
   }
   return bodies
@@ -178,7 +196,12 @@ interface VocalBody {
   ppq: number
   tempos: [number, number][]
   notes: VocalNote[]
-  params: { transpose: number }
+  params: {
+    transpose: number
+    align?: string
+    temperature?: number
+    seed?: number
+  }
   track: string
 }
 
@@ -229,6 +252,7 @@ export class VocalService {
     this.player.onPositionChanged.subscribe(this.onPositionChanged)
     this.songStore.onSongChanged.subscribe(this.onSongReplaced)
     vocalTrackFlags.subscribe(this.onEdited)
+    trackFx.subscribe(this.updateGains)
     this.synthGroup.onTrackMuteChanged.subscribe(this.onMuteChanged)
   }
 
@@ -368,7 +392,7 @@ export class VocalService {
       fromSec: anchor.sec + (ctx.currentTime - anchor.ctxTime),
       nowCtx: ctx.currentTime,
       toCtx: (sec) => anchor.ctxTime + (sec - anchor.sec) + PLAY_LATENCY_SEC,
-    })
+    }, trackFx.get(track))
   }
 
   private updateGains = () => {

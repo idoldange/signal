@@ -15,6 +15,8 @@ import React, {
 import { useSelectTrack } from "../../../actions"
 import { TrackPanControl } from "../../../arona/TrackPanControl"
 import { TrackVolumeControl } from "../../../arona/TrackVolumeControl"
+import { VocalAlignControl } from "../../../arona/VocalAlignControl"
+import { VocalFxControl } from "../../../arona/VocalFxControl"
 import { VocalLanguageControl } from "../../../arona/VocalLanguageControl"
 import { VocalTransposeControl } from "../../../arona/VocalTransposeControl"
 import { useContextMenu } from "../../../hooks/useContextMenu"
@@ -344,6 +346,8 @@ const _TrackListItem: FC<TrackListItemProps> = ({ trackId }) => {
           {!isConductorTrack && <TrackPanControl trackId={trackId} />}
           {isVocalTrack && <VocalTransposeControl trackId={trackId} />}
           {isVocalTrack && <VocalLanguageControl trackId={trackId} />}
+          {isVocalTrack && <VocalAlignControl trackId={trackId} />}
+          {isVocalTrack && <VocalFxControl trackId={trackId} />}
         </div>
       </Container>
       <TrackListContextMenu {...menuProps} trackId={trackId} />

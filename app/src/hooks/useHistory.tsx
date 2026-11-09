@@ -7,12 +7,14 @@ import {
   restoreHistoryAtoms,
   snapshotHistoryAtoms,
 } from "./historyAtom"
+import { type VocalSnapshot, vocalSnapshot } from "../arona/vocalTrack"
 import { useSong } from "./useSong"
 import { useStores } from "./useStores"
 
 type HistorySnapshot = {
   song: ReturnType<Song["serialize"]>
   atoms: HistoryAtomsSnapshot
+  vocal?: VocalSnapshot
 }
 
 export function useHistory() {
@@ -46,6 +48,7 @@ function useSnapshot() {
       (get): HistorySnapshot => ({
         song: songStore.serialize(),
         atoms: snapshotHistoryAtoms(get),
+        vocal: vocalSnapshot.of(songStore.song),
       }),
       [songStore],
     ),
@@ -58,7 +61,11 @@ function useRestore() {
   return useAtomCallback(
     useCallback(
       (_get, set, snapshot: HistorySnapshot) => {
-        setSong(Song.deserialize(snapshot.song))
+        const song = Song.deserialize(snapshot.song)
+        if (snapshot.vocal !== undefined) {
+          vocalSnapshot.restore(song, snapshot.vocal)
+        }
+        setSong(song)
         restoreHistoryAtoms(set, snapshot.atoms)
       },
       [setSong],

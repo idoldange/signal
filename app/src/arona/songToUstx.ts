@@ -2,13 +2,14 @@ import {
   bakePitchOffset,
   hasPitch,
   isNoteEvent,
+  isVolumeEvent,
   isProgramChangeEvent,
   type NotePitch,
   type Song,
   type Track,
 } from "@signal-app/core"
 import { trackPanPercent, trackVolumeDb } from "./trackVolume"
-import { isVocalTrack } from "./vocalTrack"
+import { isVocalTrack, trackFx } from "./vocalTrack"
 
 export const getSongTempos = (song: Song): [number, number][] => {
   const events = song.conductorTrack?.events ?? []
@@ -86,6 +87,32 @@ const instrumentName = (track: Track) => {
   return program === 0 ? name : `${name} [gm=${program}]`
 }
 
+// Volume automation (CC7) of a vocal track as an OpenUtau "vol" curve (100 = default). Step mode
+// holds each value until the next point; slope mode lets the points be joined by straight lines.
+const volumeCurve = (track: Track): string | null => {
+  const events = track.events
+    .filter(isVolumeEvent)
+    .sort((a, b) => a.tick - b.tick)
+  if (events.length === 0) {
+    return null
+  }
+  const slope = trackFx.get(track).slope
+  const xs: number[] = []
+  const ys: number[] = []
+  let prev = 100
+  for (const e of events) {
+    if (!slope && e.tick > 0 && prev !== e.value) {
+      xs.push(e.tick - 1)
+      ys.push(prev)
+    }
+    xs.push(e.tick)
+    ys.push(e.value)
+    prev = e.value
+  }
+  return `    curves:
+      - {abbr: vol, xs: [${xs.join(", ")}], ys: [${ys.join(", ")}]}`
+}
+
 // Minimal but valid USTX (OpenUtau) project. The bot accepts this with parse_ustx,
 // and OpenUtau reads tracks, tempos and notes with their lyrics.
 export function songToUstx(song: Song): string {
@@ -114,7 +141,7 @@ export function songToUstx(song: Song): string {
       '    renderer: "CLASSIC"',
       "    mute: false",
       "    solo: false",
-      `    volume: ${trackVolumeDb(track)}`,
+      `    volume: ${vocal && volumeCurve(track) !== null ? 0 : trackVolumeDb(track)}`,
       `    pan: ${trackPanPercent(track)}`,
     )
   }
@@ -134,6 +161,7 @@ export function songToUstx(song: Song): string {
         (n) =>
           `      - {position: ${n.tick}, duration: ${n.duration}, tone: ${n.noteNumber}, pitch: ${ustxPitch(n.pitch)}, vibrato: ${ustxVibrato(n.pitch)}, lyric: ${JSON.stringify(vocal ? n.lyric || "a" : "")}}`,
       ),
+      ...(vocal ? [volumeCurve(track)].filter((l): l is string => l !== null) : []),
     )
   })
 

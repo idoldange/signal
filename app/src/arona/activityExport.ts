@@ -12,7 +12,7 @@ import {
   trackCurves,
 } from "./trackMix"
 import type { VocalChunk, VocalService } from "./vocal"
-import { getVocalTrackIds } from "./vocalTrack"
+import { getVocalTrackIds, trackFx } from "./vocalTrack"
 
 export type ActivityExportMode = "audio" | "audio+ustx" | "ustx"
 
@@ -57,7 +57,7 @@ const mixVocals = async (
         fromSec: 0,
         nowCtx: 0,
         toCtx: (sec) => sec,
-      })
+      }, trackFx.get(track))
       chains.set(chunk.trackId, chain)
     }
     source.connect(chain ? chain.velocity : offline.destination)

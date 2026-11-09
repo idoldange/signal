@@ -34,6 +34,10 @@ const Content = styled(Positioned)`
   box-shadow: 0 1rem 3rem var(--color-shadow);
   border: 1px solid var(--color-popup-border);
   padding: 0.5rem 0;
+  /* long menus (many items) must scroll instead of running off the screen */
+  max-height: calc(100vh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 `
 
 const List = styled.ul`
