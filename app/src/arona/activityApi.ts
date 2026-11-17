@@ -177,6 +177,11 @@ export interface AlignGroup {
 
 export interface AlignPhrase {
   aligned: boolean
+  // false = the automatic align failed (syllable count != note count) or the phrase is in
+  // "Even stretch" mode; the groups are still there so the client can align them by hand
+  auto?: boolean
+  // true = the phrase was generated in "Even stretch" mode (syllable_align off)
+  stretched?: boolean
   sr: number
   dur_ms: number
   end_ms?: number

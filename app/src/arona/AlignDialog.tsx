@@ -493,16 +493,27 @@ export const AlignDialog: FC = () => {
         {error === null && phrases === null && <span>Generating…</span>}
         {phrases?.map((p, i) => (
           <div key={`${p.dur_ms}-${i}`}>
-            {p.aligned ? (
-              <PhraseView
-                phrase={p}
-                buffer={buffers[i]}
-                positions={positions[i]}
-                getCtx={getCtx}
-                onChange={(next) =>
-                  setPositions((all) => all.map((a, k) => (k === i ? next : a)))
-                }
-              />
+            {p.groups.length > 0 ? (
+              <>
+                {p.auto === false && (
+                  <span>
+                    {p.stretched
+                      ? "This phrase is stretched evenly (Even stretch): the orange lines start evenly split by the notes. Drag each line to where that syllable really starts, then Apply to align it to its note."
+                      : p.groups.length < 2
+                        ? "Auto alignment failed and this phrase has a single syllable band, so there is nothing to drag."
+                        : "Auto alignment failed for this phrase (the syllable count does not match the notes): the orange lines start evenly split by the notes. Drag each line to where that syllable really starts, then Apply to align it to its note."}
+                  </span>
+                )}
+                <PhraseView
+                  phrase={p}
+                  buffer={buffers[i]}
+                  positions={positions[i]}
+                  getCtx={getCtx}
+                  onChange={(next) =>
+                    setPositions((all) => all.map((a, k) => (k === i ? next : a)))
+                  }
+                />
+              </>
             ) : (
               <span>
                 This phrase is stretched evenly (syllable count does not match
