@@ -356,10 +356,12 @@ export const randomSeed = () => Math.floor(Math.random() * MAX_SEED) + 1
 export interface TrackFx {
   echo: number
   slope: boolean
+  // "smooth": each sung phrase fades in at its start and out at its end (0 = off, 1..100 = intensity)
+  smooth: number
 }
 const fxMap = new WeakMap<Track, TrackFx>()
 const fxListeners = new Set<() => void>()
-const NO_FX: TrackFx = { echo: 0, slope: false }
+const NO_FX: TrackFx = { echo: 0, slope: false, smooth: 0 }
 export const trackFx = {
   get: (track: Track): TrackFx => fxMap.get(track) ?? NO_FX,
   set(track: Track, change: Partial<TrackFx>) {
@@ -367,11 +369,19 @@ export const trackFx = {
     const next: TrackFx = {
       echo: Math.max(0, Math.min(100, Math.round(change.echo ?? prev.echo))),
       slope: change.slope ?? prev.slope,
+      smooth: Math.max(
+        0,
+        Math.min(100, Math.round(change.smooth ?? prev.smooth)),
+      ),
     }
-    if (next.echo === prev.echo && next.slope === prev.slope) {
+    if (
+      next.echo === prev.echo &&
+      next.slope === prev.slope &&
+      next.smooth === prev.smooth
+    ) {
       return
     }
-    if (next.echo === 0 && !next.slope) {
+    if (next.echo === 0 && !next.slope && next.smooth === 0) {
       fxMap.delete(track)
     } else {
       fxMap.set(track, next)
@@ -409,7 +419,7 @@ export const vocalSaveMeta = {
         meta.trackGen[String(index)] = vocalGen.ofTrack(track)
       }
       const fx = trackFx.get(track)
-      if (fx.echo > 0 || fx.slope) {
+      if (fx.echo > 0 || fx.slope || fx.smooth > 0) {
         meta.fx ??= {}
         meta.fx[String(index)] = { ...fx }
       }
@@ -467,6 +477,7 @@ export const vocalSaveMeta = {
         trackFx.set(track, {
           echo: num((f as TrackFx).echo) ?? 0,
           slope: (f as TrackFx).slope === true,
+          smooth: num((f as TrackFx).smooth) ?? 0,
         })
       }
     }

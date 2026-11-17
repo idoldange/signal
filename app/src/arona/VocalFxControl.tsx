@@ -45,14 +45,37 @@ export const VocalFxControl: FC<{ trackId: TrackId }> = ({ trackId }) => {
   const { getTrack } = useSong()
   const track = getTrack(trackId)
   const fx = useSyncExternalStore(trackFx.subscribe, () =>
-    track ? trackFx.get(track) : { echo: 0, slope: false },
+    track ? trackFx.get(track) : { echo: 0, slope: false, smooth: 0 },
   )
   if (!track) {
     return null
   }
   const lastEcho = Math.max(fx.echo, 40)
+  const lastSmooth = Math.max(fx.smooth, 60)
   return (
     <>
+      <Container title="Smooth voice: each phrase fades in gradually and dies away into a big room. Click to turn it on / off, drag for the intensity.">
+        Smooth
+        <Toggle
+          data-on={fx.smooth > 0}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            trackFx.set(track, { smooth: fx.smooth > 0 ? 0 : lastSmooth })
+          }}
+        >
+          {fx.smooth > 0 ? "On" : "Off"}
+        </Toggle>
+        <Slider
+          type="range"
+          min={0}
+          max={100}
+          value={fx.smooth}
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) =>
+            trackFx.set(track, { smooth: Number(e.target.value) })
+          }
+        />
+      </Container>
       <Container title="Karaoke echo: a smooth reverb tail that also softens the voice. Click to turn it on / off, drag for the intensity.">
         Echo
         <Toggle
