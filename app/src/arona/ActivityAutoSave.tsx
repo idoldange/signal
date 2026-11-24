@@ -40,8 +40,9 @@ export const ActivityAutoSave: FC = () => {
         save()
       }
     }
-    // Periodic autosave: exit saves are best effort (browsers drop big keepalive bodies), so
-    // the take is also sent every 20 s while it keeps changing.
+    // Periodic autosave: exit saves are best effort (browsers drop keepalive bodies over 64 KiB,
+    // and a project with a vocal is bigger), so the take is also sent every 3 s while it
+    // changes. The server keeps only the latest few saves per project.
     let busy = false
     let lastSig = ""
     const periodic = async () => {
@@ -64,7 +65,7 @@ export const ActivityAutoSave: FC = () => {
         busy = false
       }
     }
-    const timer = window.setInterval(() => void periodic(), 20000)
+    const timer = window.setInterval(() => void periodic(), 3000)
     window.addEventListener("pagehide", save)
     window.addEventListener("beforeunload", save)
     document.addEventListener("visibilitychange", onVisibilityChange)

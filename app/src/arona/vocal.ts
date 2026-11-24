@@ -408,6 +408,8 @@ export class VocalService {
     this.chains.clear()
     this.watchSong()
     this.chunks = []
+    // chunks were just dropped: the cached job would return without republishing them (silence after undo)
+    this.job = null
     this.stop()
     this.updateSilenced()
     if (this.enabled) {

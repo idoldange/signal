@@ -313,7 +313,12 @@ const scheduleParam = (
   slope = false,
 ) => {
   param.cancelScheduledValues(time.nowCtx)
+  // a NaN / negative point would silence (or invert) the whole vocal
+  points = points.filter((p) => Number.isFinite(p.sec) && Number.isFinite(p.value))
   let start = valueAt(points, time.fromSec, fallback)
+  if (!Number.isFinite(start)) {
+    start = fallback
+  }
   if (slope) {
     // inside a ramp: start part way along it
     const next = points.findIndex((p) => p.sec > time.fromSec)
@@ -321,7 +326,10 @@ const scheduleParam = (
       const a = points[next - 1]
       const b = points[next]
       start =
-        a.value + ((b.value - a.value) * (time.fromSec - a.sec)) / (b.sec - a.sec)
+        b.sec > a.sec
+          ? a.value +
+            ((b.value - a.value) * (time.fromSec - a.sec)) / (b.sec - a.sec)
+          : b.value
     }
   }
   param.setValueAtTime(start, time.nowCtx)

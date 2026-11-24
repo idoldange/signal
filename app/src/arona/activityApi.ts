@@ -100,6 +100,10 @@ export interface ActivityProjectTrack {
   sf?: string
   preset?: string
   drums: boolean
+  // USTX track mix: volume in dB (0 = unchanged), pan -100..100, volume curve [tick, 0..200]
+  volume_db?: number
+  pan?: number
+  vol_curve?: [number, number][]
   notes: ActivityProjectNote[]
 }
 

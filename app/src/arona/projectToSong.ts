@@ -83,6 +83,23 @@ export function projectToSong(
       ]),
     )
     track.setProgramNumberAt(0, program)
+    // Track volume / pan / volume curve of the USTX become MIDI CC7 / CC10, as the DAW expects.
+    const baseVol = 100 * 10 ** ((t.volume_db ?? 0) / 20)
+    const ccVol = (v: number) => Math.max(0, Math.min(127, Math.round(v)))
+    const curve = (t.vol_curve ?? []).filter(
+      ([x, y]) => Number.isFinite(x) && Number.isFinite(y),
+    )
+    const mix = [
+      { ...controllerMidiEvent(0, channel, 10, Math.max(0, Math.min(127, Math.round(64 + ((t.pan ?? 0) * 63) / 100)))), tick: 0 },
+      ...(curve.length === 0 || Math.max(0, Math.round(curve[0]?.[0] ?? 0)) > 0
+        ? [{ ...controllerMidiEvent(0, channel, 7, ccVol(baseVol)), tick: 0 }]
+        : []),
+      ...curve.map(([x, y]) => ({
+        ...controllerMidiEvent(0, channel, 7, ccVol((y / 100) * baseVol)),
+        tick: Math.max(0, Math.round(x)),
+      })),
+    ]
+    track.addEvents(tickedEventsToTrackEvents(mix))
     track.addEvents(
       t.notes.map((n) => ({
         tick: Math.max(0, Math.round(n.pos)),
